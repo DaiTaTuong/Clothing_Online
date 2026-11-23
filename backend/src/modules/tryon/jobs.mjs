@@ -78,7 +78,13 @@ export function createJobs(store) {
       if (!avatar || avatar.type!=='avatar' || avatar.status!=='completed' || p.profileVersion!==state.profileVersion || !(source = readMedia(owner,p.imageId))) throw fail(409,'STALE_AVATAR','Hãy cập nhật lại phôi vóc dáng.');
     }
     const faceId = mode==='face' || (mode==='ai' && source && JSON.parse(job(owner,body.avatarId).payload).mode==='face') ? face?.id : null;
-    const key = digest(JSON.stringify(['forme-v1',type,state.profileVersion,faceId,faceId?face.hash:null,source?.hash,product?.id,product?.imageVersion,mode]));
+    const outfitData = body.outfit ? {
+      top: byId.get(body.outfit.topId) || null,
+      bottom: byId.get(body.outfit.bottomId) || null,
+      dress: byId.get(body.outfit.dressId) || null,
+    } : null;
+    const fullOutfit = outfitData?.top || outfitData?.bottom || outfitData?.dress ? outfitData : product;
+    const key = digest(JSON.stringify(['forme-v1',type,state.profileVersion,faceId,faceId?face.hash:null,source?.hash,product?.id,body.outfit?.topId,body.outfit?.bottomId,body.outfit?.dressId,product?.imageVersion,mode]));
     const recent = all('SELECT * FROM jobs WHERE owner=? AND type=? AND cache_key=? AND expires>? ORDER BY created DESC',owner,type,key,now());
     const cached = recent.find(r => ['queued','processing'].includes(r.status) || (r.status==='completed' && readMedia(owner,JSON.parse(r.payload).imageId)));
     if (cached) return view(cached);
@@ -86,9 +92,12 @@ export function createJobs(store) {
     const id = uuid();
     store.txn(() => {
       if (mode!=='2d') {
-        const date = new Date().toISOString().slice(0,10);
-        if ((get('SELECT count FROM usage WHERE date=?',date)?.count||0) >= Number(process.env.AI_DAILY_LIMIT || 15)) throw fail(429,'AI_QUOTA','Đã hết lượt xử lý ảnh AI hôm nay.');
-        run('INSERT INTO usage VALUES (?,1) ON CONFLICT(date) DO UPDATE SET count=count+1',date);
+        const limit = Number(process.env.AI_DAILY_LIMIT ?? 99999);
+        if (limit > 0) {
+          const date = new Date().toISOString().slice(0,10);
+          if ((get('SELECT count FROM usage WHERE date=?',date)?.count||0) >= limit) throw fail(429,'AI_QUOTA','Đã hết lượt xử lý ảnh AI hôm nay.');
+          run('INSERT INTO usage VALUES (?,1) ON CONFLICT(date) DO UPDATE SET count=count+1',date);
+        }
       }
       run('INSERT INTO jobs VALUES (?,?,?,?,?,?,?,?)',id,owner,type,key,'queued',JSON.stringify(p),now(),now()+day);
     });
@@ -101,13 +110,13 @@ export function createJobs(store) {
         await delay(150);
         if (!job(owner,id)) return;
         update('processing',mode==='face'?'sync-face':type==='try-on'?'fit':'render');
-        const render = (outfit = null) => sharp(Buffer.from(mannequin(profile,outfit))).png().toBuffer();
-        const bytes = mode==='face' ? await swapFace(await render(),face.data) : mode==='ai' ? await virtualTryOn(source?.data || await render(),product) : await render(product);
+        const render = (outfitParam = null) => sharp(Buffer.from(mannequin(profile,outfitParam || fullOutfit))).png().toBuffer();
+        const bytes = mode==='face' ? await swapFace(await render(),face.data) : mode==='ai' ? await virtualTryOn(source?.data || await render(),product,fullOutfit) : await render(fullOutfit);
         await delay(mode==='2d'?320:0);
         if (!job(owner,id)) return;
         store.txn(() => update('completed','ready',{imageId:insert(owner,type,bytes).id}));
-      } catch {
-        update('failed','failed',{error:mode==='2d'?'Không tạo được ảnh. Hãy thử lại.':'Dịch vụ ảnh chưa tạo được kết quả. Bạn có thể thử lại hoặc chọn xem 2D.'});
+      } catch (err) {
+        update('failed','failed',{error:mode==='2d'?'Không tạo được ảnh. Hãy thử lại.':err.message||'Dịch vụ ảnh chưa tạo được kết quả. Bạn có thể thử lại hoặc chọn xem 2D.'});
       }
     })();
     return view(job(owner,id));

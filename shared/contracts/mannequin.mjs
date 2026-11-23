@@ -1,6 +1,6 @@
 import { sampleProfile, tones } from './index.mjs';
 
-export function mannequin(profile = sampleProfile, product = null, backdrop = '#F3F4F6') {
+export function mannequin(profile = sampleProfile, outfit = null, backdrop = '#F3F4F6') {
   const {height,weight,bust,waist,hip,tone} = profile;
   const skin = tones[tone].color, y = .92 + (height-145)*.0038;
   const B = 62+(bust-86)*.68+(weight-54)*.08, W = 49+(waist-69)*.6, H = 70+(hip-93)*.65, S = 75+(weight-54)*.28+(bust-86)*.18;
@@ -10,13 +10,24 @@ export function mannequin(profile = sampleProfile, product = null, backdrop = '#
   const leg = `M${L(H)} 488Q${L(H+11)} 545 ${L(H*.70)} 635Q${L(43)} 682 ${L(48)} 710Q${L(51)} 751 ${L(38)} 805L${L(33)} 860Q${L(44)} 884 ${L(56)} 896Q${L(58)} 907 ${L(21)} 906Q${L(9)} 902 ${L(11)} 890L${L(12)} 856Q${L(6)} 814 ${L(12)} 769L${L(15)} 708Q${L(10)} 679 ${L(13)} 643L${L(4)} 554 384 522Z`;
   const tank = `M${L(S-17)} 230 ${L(S-33)} 222Q${L(19)} 267 384 272Q${R(19)} 267 ${R(S-33)} 222L${R(S-17)} 230Q${R(S-17)} 280 ${R(B+1)} 292Q${R(B+4)} 332 ${R(W)} 371L${R(W)} 413Q384 425 ${L(W)} 413L${L(W)} 371Q${L(B+4)} 332 ${L(B+1)} 292Q${L(S-17)} 280 ${L(S-17)} 230Z`;
   const shorts = `M${L(W+5)} 421Q384 432 ${R(W+5)} 421Q${R(H+11)} 471 ${R(H+8)} 567L${R(12)} 573 384 550 ${L(12)} 573 ${L(H+8)} 567Q${L(H+11)} 471 ${L(W+5)} 421Z`;
-  const c = product?.hex || '#82817b';
-  const cut = product?.cut;
-  const upper = !product || product.category === 'bottoms' || cut === 'tank' ? tank :
-    `M${L(S)} 230 ${L(28)} 216Q384 ${cut === 'knit' ? 291 : 246} ${R(28)} 216L${R(S)} 230Q${R(S+27)} 243 ${R(S+35)} 268L${R(S+(cut==='blazer'||cut==='knit'?69:48))} ${cut==='blazer'||cut==='knit'?472:333} ${R(S+(cut==='blazer'||cut==='knit'?42:18))} ${cut==='blazer'||cut==='knit'?479:344} ${R(S+1)} 310Q${R(B+4)} 335 ${R(W)} 412L${R(H-7)} ${cut==='blazer'?489:442}Q384 ${cut==='blazer'?506:452} ${L(H-7)} ${cut==='blazer'?489:442}L${L(W)} 412Q${L(B+4)} 335 ${L(S+1)} 310L${L(S+(cut==='blazer'||cut==='knit'?42:18))} ${cut==='blazer'||cut==='knit'?479:344} ${L(S+(cut==='blazer'||cut==='knit'?69:48))} ${cut==='blazer'||cut==='knit'?472:333} ${L(S+35)} 268Q${L(S+27)} 243 ${L(S)} 230Z`;
-  const bottom = cut === 'pants' ? `M${L(W+3)} 416Q384 427 ${R(W+3)} 416Q${R(H+9)} 469 ${R(H+6)} 528L${R(60)} 854 ${R(8)} 854 384 554 ${L(8)} 854 ${L(60)} 854 ${L(H+6)} 528Q${L(H+9)} 469 ${L(W+3)} 416Z` :
-    cut === 'skirt' ? `M${L(W+4)} 421Q384 432 ${R(W+4)} 421L${R(H+36)} 712Q384 734 ${L(H+36)} 712Z` : shorts;
-  const dress = `M${L(S-15)} 229 ${L(S-31)} 219Q384 ${cut==='wrap'?298:271} ${R(S-31)} 219L${R(S-15)} 229Q${R(S-13)} 282 ${R(B)} 294Q${R(B+1)} 338 ${R(W)} 393Q${R(H+20)} 545 ${R(H+47)} 744Q384 778 ${L(H+47)} 744Q${L(H+20)} 545 ${L(W)} 393Q${L(B+1)} 338 ${L(B)} 294Q${L(S-13)} 282 ${L(S-15)} 229Z`;
+
+  const top = outfit?.top || (outfit?.category === 'tops' ? outfit : null);
+  const bottomItem = outfit?.bottom || (outfit?.category === 'bottoms' ? outfit : null);
+  const dressItem = outfit?.dress || (outfit?.category === 'dresses' ? outfit : null);
+
+  const topColor = top?.hex || '#a7a39c';
+  const topCut = top?.cut;
+  const bottomColor = bottomItem?.hex || '#767672';
+  const bottomCut = bottomItem?.cut;
+  const dressColor = dressItem?.hex || '#82817b';
+  const dressCut = dressItem?.cut;
+
+  const tankTop = `M${L(S-14)} 230 ${L(S-32)} 222 ${L(26)} 238 ${R(26)} 238 ${R(S-32)} 222 ${R(S-14)} 230Q${R(S-14)} 280 ${R(B+2)} 292Q${R(B+4)} 332 ${R(W)} 371L${R(W)} 413Q384 425 ${L(W)} 413L${L(W)} 371Q${L(B+4)} 332 ${L(B+2)} 292Q${L(S-14)} 280 ${L(S-14)} 230Z`;
+  const upper = !top ? tank : (topCut === 'tank' ? tankTop :
+    `M${L(S)} 230 ${L(28)} 216Q384 ${topCut === 'knit' ? 291 : 246} ${R(28)} 216L${R(S)} 230Q${R(S+27)} 243 ${R(S+35)} 268L${R(S+(topCut==='blazer'||topCut==='knit'?69:48))} ${topCut==='blazer'||topCut==='knit'?472:333} ${R(S+(topCut==='blazer'||topCut==='knit'?42:18))} ${topCut==='blazer'||topCut==='knit'?479:344} ${R(S+1)} 310Q${R(B+4)} 335 ${R(W)} 412L${R(H-7)} ${topCut==='blazer'?489:442}Q384 ${topCut==='blazer'?506:452} ${L(H-7)} ${topCut==='blazer'?489:442}L${L(W)} 412Q${L(B+4)} 335 ${L(S+1)} 310L${L(S+(topCut==='blazer'||topCut==='knit'?42:18))} ${topCut==='blazer'||topCut==='knit'?479:344} ${L(S+(topCut==='blazer'||topCut==='knit'?69:48))} ${topCut==='blazer'||topCut==='knit'?472:333} ${L(S+35)} 268Q${L(S+27)} 243 ${L(S)} 230Z`);
+  const bottom = bottomCut === 'pants' ? `M${L(W+3)} 416Q384 427 ${R(W+3)} 416Q${R(H+9)} 469 ${R(H+6)} 528L${R(60)} 854 ${R(8)} 854 384 554 ${L(8)} 854 ${L(60)} 854 ${L(H+6)} 528Q${L(H+9)} 469 ${L(W+3)} 416Z` :
+    bottomCut === 'skirt' ? `M${L(W+4)} 421Q384 432 ${R(W+4)} 421L${R(H+36)} 712Q384 734 ${L(H+36)} 712Z` : shorts;
+  const dress = `M${L(S-15)} 229 ${L(S-31)} 219Q384 ${dressCut==='wrap'?298:271} ${R(S-31)} 219L${R(S-15)} 229Q${R(S-13)} 282 ${R(B)} 294Q${R(B+1)} 338 ${R(W)} 393Q${R(H+20)} 545 ${R(H+47)} 744Q384 778 ${L(H+47)} 744Q${L(H+20)} 545 ${L(W)} 393Q${L(B+1)} 338 ${L(B)} 294Q${L(S-13)} 282 ${L(S-15)} 229Z`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="768" height="1024" viewBox="0 0 768 1024">
   <defs>
     <linearGradient id="skin"><stop stop-color="#4c211e" stop-opacity=".25"/><stop offset=".26" stop-color="#fff3d9" stop-opacity=".22"/><stop offset=".56" stop-color="#fff3dc" stop-opacity=".03"/><stop offset="1" stop-color="#4c211e" stop-opacity=".28"/></linearGradient>
@@ -32,10 +43,11 @@ export function mannequin(profile = sampleProfile, product = null, backdrop = '#
     <use href="#leg"/><use href="#leg" transform="translate(768) scale(-1 1)"/>
     <use href="#arm"/><use href="#arm" transform="translate(768) scale(-1 1)"/>
     <path d="${torso}" fill="${skin}"/><path d="${torso}" fill="url(#skin)"/>
-    ${product?.category === 'dresses' ? `<path d="${dress}" fill="${c}"/><path d="${dress}" fill="url(#cloth)"/><path d="M${L(W)} 393Q384 411 ${R(W)} 393M378 412 352 735M408 412 448 734" fill="none" stroke="#221f1e" opacity=".28" stroke-width="2"/>` :
-      `<path d="${bottom}" fill="${product?.category==='bottoms'?c:'#767672'}"/><path d="${bottom}" fill="url(#cloth)"/><path d="${upper}" fill="${product?.category==='tops'?c:'#a7a39c'}"/><path d="${upper}" fill="url(#cloth)"/>
-      ${['shirt','blazer'].includes(cut) ? `<path d="M356 216 369 267 384 249 399 267 412 216M384 249V${cut==='blazer'?496:444}" fill="none" stroke="#201d1a" opacity=".4" stroke-width="2"/>${[279,308,337,366,395,424].map(n=>`<circle cx="387" cy="${n}" r="2.6" fill="#201d1a" opacity=".53"/>`).join('')}` : ''}
-      ${cut==='pants' ? '<path d="M384 442V546M345 455 352 841M423 455 416 841" fill="none" stroke="#28221d" stroke-width="2" opacity=".34"/>' : ''}`}
+    ${dressItem ? `<path d="${dress}" fill="${dressColor}"/><path d="${dress}" fill="url(#cloth)"/><path d="M${L(W)} 393Q384 411 ${R(W)} 393M378 412 352 735M408 412 448 734" fill="none" stroke="#221f1e" opacity=".28" stroke-width="2"/>` :
+      `<path d="${bottom}" fill="${bottomItem ? bottomColor : '#767672'}"/><path d="${bottom}" fill="url(#cloth)"/>
+       <path d="${upper}" fill="${top ? topColor : '#a7a39c'}"/><path d="${upper}" fill="url(#cloth)"/>
+       ${['shirt','blazer'].includes(topCut) ? `<path d="M356 216 369 267 384 249 399 267 412 216M384 249V${topCut==='blazer'?496:444}" fill="none" stroke="#201d1a" opacity=".4" stroke-width="2"/>${[279,308,337,366,395,424].map(n=>`<circle cx="387" cy="${n}" r="2.6" fill="#201d1a" opacity=".53"/>`).join('')}` : topCut==='tank'&&top ? `<path d="M${L(26)} 238H${R(26)}" fill="none" stroke="#201d1a" opacity=".4" stroke-width="2"/>` : ''}
+       ${bottomCut==='pants' ? '<path d="M384 442V546M345 455 352 841M423 455 416 841" fill="none" stroke="#28221d" stroke-width="2" opacity=".34"/>' : ''}`}
   </g>
   <ellipse cx="385" cy="85" rx="31" ry="31" fill="url(#hair)"/>
   <path d="M337 118Q333 80 366 73Q395 64 418 84Q439 100 431 149L425 181Q411 204 384 204Q354 202 343 181Z" fill="url(#hair)"/>

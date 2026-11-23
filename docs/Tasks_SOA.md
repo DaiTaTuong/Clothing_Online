@@ -1,415 +1,463 @@
-# KẾ HOẠCH TRIỂN KHAI VÀ PHÂN CÔNG NHIỆM VỤ DỰ ÁN
+# TÀI LIỆU THIẾT KẾ KIẾN TRÚC CƠ BẢN VÀ KẾ HOẠCH PHÂN CÔNG (SOA & AI)
 
-**Đề tài:** Hệ thống bán hàng và phối đồ cá nhân hóa có tích hợp AI  
-**Thời gian thực hiện:** 2 tuần, tương đương 14 ngày lịch  
-**Quy mô nhóm:** 5 thành viên
+**Đề tài:** Hệ thống thương mại điện tử thời trang tích hợp AI Stylist và AI Phối đồ thực tế (Virtual Try-On 2 bước)  
+**Kiến trúc:** Service-Oriented Architecture (SOA) kết hợp AI Microservice tự huấn luyện (Self-hosted & Fine-tuned on Local GPU)  
+**Thời gian thực hiện:** 2 tuần (14 ngày lịch) | **Quy mô nhóm:** 5 thành viên
 
-| Hạng mục | Chi tiết |
-| :--- | :--- |
-| **Thành viên** | Nguyễn Xuân Tường; Doãn Duy Lợi; Nguyễn Phúc Thành; Hoàng Lâm Tùng; An Đức Minh Trí |
-| **Tài liệu yêu cầu** | `Tai_Lieu.md` |
-| **Tài liệu mẫu phân công** | `Tasks_ML_project.md` |
-| **Hiện trạng** | Đã có giao diện bán hàng demo; chưa có chatbot và AI thử đồ. Đợt triển khai này thiết kế, sinh và xây dựng lại giao diện bán hàng, phòng thử đồ, đăng nhập theo tài liệu mới. |
-| **Mục tiêu bàn giao** | Một bản MVP chạy được xuyên suốt: xem hàng → được AI tư vấn → cá nhân hóa mannequin → thử đồ → thêm giỏ hàng → lưu hồ sơ/lịch sử theo phiên hoặc tài khoản. |
-| **Nguyên tắc phân công** | Mỗi người sở hữu một phân hệ chính, tự kiểm thử và viết tài liệu phần mình; cùng tham gia tích hợp, review và thuyết trình. |
-| **Ngân sách thời gian** | Mỗi người **44 giờ kế hoạch + 4 giờ dự phòng = 48 giờ**, tương đương **20%** tổng nguồn lực. |
+---
 
-**Quy ước:** N1–N14 là ngày thứ 1–14 kể từ khi bắt đầu dự án; chưa gắn ngày cụ thể. Kế hoạch giả định nhóm được dùng API AI có sẵn và thống nhất ngân sách trong N1. Chưa có thông tin về chuyên môn từng người nên phân công dưới đây dựa trên khối lượng và độ phức tạp của các phân hệ.
+## 📌 NGUYÊN TẮC THIẾT KẾ VÀ PHẠM VI DỰ ÁN
+
+1. **Phần Giao diện Bán hàng (Shop UI) — GIỮ NGUYÊN**:
+   * Tận dụng toàn bộ giao diện bán hàng demo đã xây dựng sẵn (`frontend/src/features/shop/Shop.jsx`, `Account.jsx`, bộ CSS và Navbar/Footer).
+   * Thành viên **Nguyễn Xuân Tường** chịu trách nhiệm duy trì UI hiện có, chỉ tập trung đấu nối dữ liệu API thực, tích hợp Widget Chatbot và kích hoạt nút *"Thử ngay"* / *"Phối cả set"* để điều hướng sang Phòng phối đồ.
+2. **Các Phân hệ còn lại — THIẾT KẾ CƠ BẢN ĐỂ THÀNH VIÊN TỰ TAY THỰC HIỆN**:
+   * Tài liệu này đóng vai trò là **Bản Đặc tả Kỹ thuật và Khung Thiết kế Nền tảng (Baseline Architectural Blueprint)**.
+   * Cung cấp đầy đủ: Kiến trúc thành phần, Lược đồ Database (Schema), Hợp đồng API (Contracts), Thuật toán cốt lõi, Kịch bản huấn luyện AI LoRA và Mô hình máy trạng thái (State Machine).
+   * Trên cơ sở đó, từng thành viên (**Lợi, Thành, Tùng, Trí**) sẽ tự tay thiết kế chi tiết mã nguồn, thuật toán và triển khai từ đầu (from scratch) cho phân hệ của mình.
+3. **Chi phí bên thứ ba = 0 VNĐ**:
+   * Tuyệt đối không dùng API trả phí (FASHN.ai).
+   * Toàn bộ mô hình AI sử dụng mã nguồn mở SOTA (YOLOv8-pose, BiRefNet/RMBG-1.4, CatVTON) và **tự huấn luyện LoRA trên máy tính có GPU NVIDIA của thành viên An Đức Minh Trí**.
 
 ---
 
 ## MỤC LỤC
 
-- **CHƯƠNG 1. TỔNG QUAN VÀ PHẠM VI TRIỂN KHAI**
-  - 1.1. Mục tiêu dự án
-  - 1.2. Phạm vi và giới hạn của bản MVP
-  - 1.3. Tiến độ 2 tuần
-- **CHƯƠNG 2. GIẢI PHÁP KỸ THUẬT VÀ HỢP ĐỒNG TÍCH HỢP**
-  - 2.1. Các phân hệ và công nghệ
-  - 2.2. Pipeline cá nhân hóa và thử đồ AI
-  - 2.3. Chatbot, đề xuất sản phẩm và tư vấn size
-  - 2.4. Session, cache và dữ liệu
-  - 2.5. Hợp đồng API dùng chung
-- **CHƯƠNG 3. KẾ HOẠCH TRIỂN KHAI VÀ PHÂN CÔNG**
-  - 3.1. Vai trò và quyền sở hữu mã nguồn
-  - 3.2. Bảng hạng mục công việc
-  - 3.3. Tổng hợp khối lượng và nguyên tắc công bằng
-  - 3.4. Phụ thuộc và lịch bàn giao
-  - 3.5. Mốc tiến độ và tiêu chí nghiệm thu
-  - 3.6. Review, kiểm thử và phối hợp
-  - 3.7. Rủi ro và phương án xử lý
-  - 3.8. Hồ sơ bàn giao và phân chia thuyết trình
+- **PHẦN 1. BẢN THIẾT KẾ KIẾN TRÚC NỀN TẢNG (BASELINE SYSTEM DESIGN)**
+  - 1.1. Sơ đồ Kiến trúc Tổng thể (SOA System Blueprint)
+  - 1.2. Thiết kế Cơ bản: Giao diện Phòng phối đồ AI & Camera Guide (Nguyễn Phúc Thành)
+  - 1.3. Thiết kế Cơ bản: Backend Gateway, Database & Quản lý Phiên (Doãn Duy Lợi)
+  - 1.4. Thiết kế Cơ bản: AI Stylist & Thuật toán Phân tầng Layering (Hoàng Lâm Tùng)
+  - 1.5. Thiết kế Cơ bản: AI Vision Pipeline 2 Bước & Huấn luyện LoRA (An Đức Minh Trí)
+  - 1.6. Chuẩn hóa Hợp đồng API Dùng chung (REST API Specifications)
+- **PHẦN 2. KẾ HOẠCH PHÂN CÔNG VÀ DANH MỤC CÔNG VIỆC (TASK BREAKDOWN)**
+  - 2.1. Phân định vai trò và phạm vi mã nguồn
+  - 2.2. Chi tiết 30 đầu việc chuyên môn (T01 – T30)
+  - 2.3. Đầu việc chung (G01 – G04) và Quỹ dự phòng (R01)
+  - 2.4. Tổng hợp ngân sách thời gian (Cân bằng 48h / người)
+- **PHẦN 3. TIẾN ĐỘ, KIỂM THỬ VÀ NGHIỆM THU HỌC THUẬT**
+  - 3.1. Lộ trình 14 ngày và Ma trận bàn giao
+  - 3.2. 10 Kịch bản kiểm thử tích hợp End-to-End (K01 – K10)
+  - 3.3. Hồ sơ học thuật phục vụ báo cáo (Loss Curve, SSIM, CLIP Score)
+  - 3.4. Phân chia thuyết trình và kịch bản demo
 
 ---
 
-## CHƯƠNG 1. TỔNG QUAN VÀ PHẠM VI TRIỂN KHAI
+# PHẦN 1. BẢN THIẾT KẾ KIẾN TRÚC NỀN TẢNG (BASELINE SYSTEM DESIGN)
 
-### 1.1. Mục tiêu dự án
-
-Xây dựng hệ thống gồm ba giao diện chính theo `Tai_Lieu.md`:
-
-1. **Cửa hàng:** navbar, tìm kiếm, banner cá nhân hóa, bộ lọc, lưới sản phẩm, gợi ý AI, giỏ hàng và liên kết sang phòng thử đồ.
-2. **Phòng thử đồ:** bố cục ba cột, nhập số đo, chọn màu da, tải ảnh mặt tùy chọn, mannequin 2D, chọn trang phục và xem kết quả AI.
-3. **Đăng nhập:** cho phép khách sử dụng chức năng cơ bản theo phiên; tài khoản dùng để lưu và khôi phục hồ sơ, hội thoại, kết quả đã chọn lưu.
-
-Chatbot AI Stylist xuất hiện ở góc phải phía dưới trên cả cửa hàng và phòng thử đồ, dùng chung hồ sơ và lịch sử hội thoại.
-
-### 1.2. Phạm vi và giới hạn của bản MVP
-
-| Nhóm chức năng | Nội dung phải triển khai | Giới hạn để hoàn thành trong 2 tuần |
-| :--- | :--- | :--- |
-| **Giao diện mới** | Thiết kế/sinh giao diện mới, chuyển thành component chạy được, thống nhất màu sắc và trạng thái tương tác | Tái sử dụng logic hoặc tài nguyên hợp lệ của demo cũ; nghiệm thu bằng giao diện có kết nối dữ liệu, không chỉ bằng ảnh thiết kế |
-| **Cửa hàng** | Navbar, hero, tìm kiếm, lọc, sắp xếp, thẻ sản phẩm, hồ sơ nhanh, thêm giỏ, chuyển trang thử đồ | Dữ liệu mẫu 24 sản phẩm: 8 áo, 8 quần/váy, 8 đầm liền; có tag tư vấn và bảng size |
-| **Phòng thử đồ** | Ba cột desktop; bố cục xếp lại trên tablet/mobile; khung model 3:4; trạng thái từng bước | Có chuyển giữa phôi 2D và kết quả AI; không làm mô hình 3D hay camera thời gian thực |
-| **Mannequin 2D** | Chiều cao 145–190 cm, cân nặng 40–100 kg, ngực/eo/hông, 5–6 màu da; xuất PNG 768×1024 | Chuyển số đo thành tỉ lệ minh họa; giữ cấu trúc vùng đầu ổn định, không tuyên bố chính xác cơ thể theo từng centimet |
-| **Cá nhân hóa khuôn mặt** | Thử nghiệm Face Swap từ ảnh mặt tùy chọn và phôi 2D; cache phôi cá nhân hóa | Điều kiện bật chức năng là thử nghiệm đầu vào đạt yêu cầu ở N2; bỏ ảnh mặt vẫn dùng được mannequin mặc định |
-| **AI thử đồ** | Tạo tác vụ từ phôi đã chọn và ảnh sản phẩm, hiển thị kết quả hoặc lỗi, tái sử dụng kết quả hợp lệ | Một món mỗi tác vụ. Kiểm chứng từng loại áo, quần/váy, đầm; chỉ bật loại API thực sự hỗ trợ. Phối set là gợi ý nhiều món, không mặc định API ghép cả set trong một lần |
-| **Chatbot và đề xuất** | Hiểu nhu cầu, dùng hồ sơ, trả thẻ sản phẩm thật, nút “Thử ngay”, câu hỏi nhanh | Lọc dữ liệu + quy tắc phối đồ + LLM; danh mục nhỏ chưa cần cơ sở dữ liệu vector |
-| **Đăng nhập và phiên** | Đăng ký email/mật khẩu, đăng nhập/đăng xuất, phiên khách, lưu và khôi phục hồ sơ | Phần đăng nhập trong tài liệu gốc chưa hoàn chỉnh; đây là phạm vi bổ sung để triển khai. Chưa làm đăng nhập mạng xã hội, xác thực email và quên mật khẩu |
-| **Giỏ hàng** | Chọn size, thêm/xóa, cập nhật số lượng và tổng tiền | Thanh toán thực, vận chuyển, quản trị bán hàng và xử lý đơn hàng không nằm trong đợt này |
-
-**Điểm kỹ thuật cần kiểm chứng:** Các mô tả trong tài liệu về Face Swap tự đồng bộ màu da, xử lý tóc, giữ chính xác số đo và tạo độ rủ như thật được coi là mục tiêu chất lượng, không phải khả năng đã được xác nhận. API có thể không nhận diện tốt khuôn mặt hoặc tư thế trên mannequin SVG/Canvas. Nhóm phải lưu kết quả thử nghiệm và công bố giới hạn thực tế; ảnh mặc thử là minh họa, còn tư vấn size dựa trên số đo và bảng size.
-
-### 1.3. Tiến độ 2 tuần
-
-- **N1–N2:** chốt giao diện, dữ liệu, hợp đồng API; thử đầu vào mannequin với Face Swap và Virtual Try-On.
-- **N3–N5:** hoàn thiện nền tảng UI, mannequin, phiên/hồ sơ và bộ đề xuất; các phần dùng chung mock đúng hợp đồng.
-- **N6–N8:** tích hợp chatbot, phòng thử đồ và tác vụ AI; cuối N7 có một luồng tối thiểu chạy thật, N8 hoàn thiện các nhánh còn lại.
-- **N9–N10:** hoàn thiện tìm kiếm thông minh, giỏ hàng, đăng nhập, cache, lỗi và bản triển khai; cuối N10 đóng băng tính năng.
-- **N11–N12:** kiểm thử, review chéo, sửa lỗi và chốt phiên bản.
-- **N13–N14:** hoàn thiện tài liệu, slide, video dự phòng và tổng duyệt. Chỉ sửa lỗi cản trở demo sau khi chốt phiên bản.
-
----
-
-## CHƯƠNG 2. GIẢI PHÁP KỸ THUẬT VÀ HỢP ĐỒNG TÍCH HỢP
-
-### 2.1. Các phân hệ và công nghệ
-
-Giữ ngôn ngữ/framework mà nhóm đang thành thạo; chốt lựa chọn trong N1. Nếu chưa có nền tảng phù hợp, có thể dùng React/TypeScript + Tailwind cho frontend, Node.js/TypeScript cho backend và PostgreSQL cho dữ liệu. Gọi dịch vụ AI qua backend, không cần huấn luyện mô hình hoặc dựng thêm backend Python chỉ để chuyển tiếp API.
-
-Các ranh giới nghiệp vụ và thư mục dưới đây là cấu trúc đề xuất, được điều chỉnh theo repo thực tế trong N1:
+### 1.1. Sơ đồ Kiến trúc Tổng thể (SOA System Blueprint)
 
 ```text
-frontend/src/
-  app/                    # Layout, router, provider và trạng thái dùng chung
-  components/ui/          # Component nền tảng và design tokens
-  features/shop/          # Cửa hàng, giỏ hàng, tài khoản
-  features/chat/          # Widget và thẻ sản phẩm trong hội thoại
-  features/fitting-room/  # Form số đo, mannequin, hiển thị tác vụ AI
-
-backend/src/
-  platform/               # Cấu hình, database, middleware, phiên và xác thực
-  modules/catalog/        # Sản phẩm và giỏ hàng
-  modules/profiles/       # Hồ sơ cơ thể và sở thích
-  modules/stylist/        # Đề xuất, tìm kiếm thông minh, hội thoại, LLM
-  modules/tryon/          # Ảnh, phôi cá nhân hóa, tác vụ và adapter AI
-
-shared/contracts/         # Schema API, mã lỗi và fixture dùng chung
-data/                     # Dữ liệu seed và metadata sản phẩm
-docs/                     # Kiến trúc, kiểm thử, kết quả AI và báo cáo
-deploy/                   # Cấu hình chạy và triển khai
+┌────────────────────────────────────────────────────────────────────────┐
+│                        TẦNG TRÌNH DIỄN (FRONTEND)                     │
+│  ┌───────────────────────────────┐   ┌──────────────────────────────┐  │
+│  │     Shop & Chatbot UI         │   │  Fitting Room & Camera Guide │  │
+│  │     (GIỮ NGUYÊN UI CŨ)        │   │    (THIẾT KẾ MỚI TỪ ĐẦU)     │  │
+│  │  Nguyễn Xuân Tường phụ trách  │   │  Nguyễn Phúc Thành phụ trách │  │
+│  └──────────────┬────────────────┘   └──────────────┬───────────────┘  │
+└─────────────────┼───────────────────────────────────┼──────────────────┘
+                  │ HTTP / REST API                   │
+                  ▼                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                  TẦNG TRUNG TÂM & NỀN TẢNG (BACKEND API GATEWAY)        │
+│                    (Doãn Duy Lợi thiết kế & phát triển)                │
+│  - Session Manager & Guest Identity (Cookie HttpOnly)                  │
+│  - Catalog, Cart & Order Services (SQLite / PostgreSQL)                │
+│  - Privacy Manager: Cron Job tự động xóa ảnh sau 24h (TTL 24h)         │
+│  - Asynchronous Task Dispatcher & In-memory Result Cache               │
+│  - Reverse Proxy kết nối tới AI Microservice trên PC của Trí           │
+└─────────────────┬───────────────────────────────────┬──────────────────┘
+                  │                                   │
+         Internal │ REST                     Internal │ REST (LAN / Tunnel)
+                  ▼                                   ▼
+┌──────────────────────────────────┐ ┌───────────────────────────────────┐
+│     AI STYLIST MICROSERVICE      │ │    AI VISION TRY-ON MICROSERVICE  │
+│  (Hoàng Lâm Tùng tự phát triển)  │ │   (An Đức Minh Trí tự phát triển) │
+│ - Chatbot LLM tư vấn phong cách  │ │     [Chạy trên GPU PC của Trí]    │
+│ - Chuẩn hóa Dataset 24 đồ shop   │ │ - Endpoint 1: YOLO + BiRefNet     │
+│ - Thuật toán giải quyết xung đột │ │   (Validate & Tách nền trắng)     │
+│   slot và sắp xếp Layer 1 / 2    │ │ - Endpoint 2: CatVTON + LoRA      │
+│ - Đề xuất phối đồ theo dịp       │ │   (Inference với weights đã train)│
+└──────────────────────────────────┘ └───────────────────────────────────┘
 ```
-
-Các phân hệ trao đổi qua hợp đồng API rõ ràng. Đối với bản MVP, có thể chạy chung một backend; yêu cầu tách tiến trình triển khai nếu có từ môn học cần được chốt ngay N1. Tùng và Trí tự viết route, logic và phần lưu dữ liệu của module mình; Lợi cung cấp hạ tầng dùng chung và hỗ trợ tích hợp.
-
-### 2.2. Pipeline cá nhân hóa và thử đồ AI
-
-```text
-Số đo + màu da
-       ↓
-Mannequin 2D → body_2d.png
-       ↓
-Ảnh mặt tùy chọn → Face Swap khi đủ điều kiện → base_avatar.png
-       ↓
-Cache theo phiên/tài khoản + phiên bản hồ sơ + ảnh mặt + cấu hình tạo phôi
-       ↓
-Chọn sản phẩm → Virtual Try-On(base_avatar, garment_image)
-       ↓
-Tác vụ hoàn thành → lưu ảnh kết quả → hiển thị → tùy chọn lưu lịch sử
-```
-
-Quy tắc triển khai:
-
-1. N1 phải có phôi thử tối thiểu từ Thành để Trí kiểm chứng API ở N2. Tên nhà cung cấp/endpoint trong `Tai_Lieu.md` là ứng viên; cần kiểm tra khả năng truy cập, đầu vào, giá và điều kiện sử dụng trước khi chốt.
-2. Không tải ảnh mặt thì bỏ qua Face Swap và dùng phôi mặc định tương thích đã được kiểm chứng.
-3. Thay đổi slider chỉ cập nhật preview 2D. Nút “Cập nhật vóc dáng” mới tạo phôi AI, tránh phát sinh phí theo từng lần kéo.
-4. Sửa số đo, màu da hoặc ảnh mặt làm phôi cũ hết hiệu lực cho lần thử mới. Kết quả đến muộn phải gắn đúng phiên bản hồ sơ, không ghi đè kết quả hiện tại.
-5. Tạo tác vụ bất đồng bộ; frontend truy vấn trạng thái. Khóa thao tác trùng khi đang tạo cùng một yêu cầu; backend có kiểm tra trùng để tránh tính phí lặp.
-6. Khóa cache kết quả phải bao gồm chủ sở hữu, phiên bản phôi/ảnh, sản phẩm/phiên bản ảnh và cấu hình mô hình. Chỉ tái sử dụng kết quả còn hạn và còn ảnh.
-7. Ảnh kết quả cần lưu về kho ảnh của ứng dụng nếu muốn giữ lâu hơn thời hạn URL của nhà cung cấp. API key chỉ lưu ở backend.
-8. Nếu pipeline mannequin → Face Swap → Try-On không đạt ở N2, ghi rõ tính năng bị giảm phạm vi. Ảnh người mẫu bán tả thực hoặc ảnh toàn thân có thể dùng để chứng minh VTON như phương án dự phòng; kết quả này không được ghi là đã đạt đầy đủ yêu cầu mannequin cá nhân hóa.
-
-### 2.3. Chatbot, đề xuất sản phẩm và tư vấn size
-
-- **Đầu vào:** tin nhắn, hồ sơ hiện hành, trang đang mở, sản phẩm đang xem/thử, sở thích và ngân sách.
-- **Xử lý:** trích xuất nhu cầu → lọc/xếp hạng sản phẩm thật → đưa danh sách phù hợp cho LLM diễn giải → backend kiểm tra ID sản phẩm → trả lời kèm thẻ sản phẩm.
-- **Tìm kiếm:** dùng chung bộ lọc của Stylist cho câu tự nhiên như “áo sơ mi đi làm cho da ngăm”; tìm theo tên/từ khóa vẫn hoạt động khi LLM lỗi.
-- **Dữ liệu:** Tùng chuẩn bị 24 sản phẩm cùng `category`, màu, phong cách, dịp mặc, form, size, bảng size, giá, tồn kho và ảnh dùng cho thử đồ. Lợi hỗ trợ schema và nạp seed.
-- **Size:** ưu tiên số đo ngực/eo/hông và bảng size theo sản phẩm; chiều cao/cân nặng là thông tin bổ trợ. Nếu thiếu dữ liệu, yêu cầu bổ sung hoặc cho người dùng tự chọn trước khi thêm giỏ.
-- **Nhãn AI Match:** dùng mức “Phù hợp cao/vừa” có giải thích. Nếu hiển thị phần trăm như bản đặc tả, phải ghi là điểm quy tắc xếp hạng, không thể hiện như xác suất vừa vặn đã được kiểm định.
-- **Khuôn mặt:** bản MVP không tự nhận diện hình dáng khuôn mặt; có thể dùng thông tin người dùng tự chọn để tham khảo kiểu cổ áo. Ảnh mặt trong pipeline dùng cho cá nhân hóa hình ảnh.
-- **Hội thoại:** widget dùng chung conversation ID và trạng thái giữa hai trang; “Thử ngay” điều hướng đến `/fitting-room?item_id=...` và kích hoạt tác vụ khi phôi hợp lệ.
-
-### 2.4. Session, cache và dữ liệu
-
-| Dữ liệu | Nơi lưu và quy tắc |
-| :--- | :--- |
-| **Phiên khách/tài khoản** | Cookie ID phiên ngẫu nhiên; `HttpOnly`, `SameSite`, `Secure` khi dùng HTTPS; dữ liệu phiên ở backend, đổi ID khi đăng nhập |
-| **Hồ sơ và giỏ hàng** | Gắn với phiên khách hoặc user; khi đăng nhập có quy tắc chuyển/gộp dữ liệu, không mất size và số lượng đã chọn |
-| **Hội thoại** | Database, có chủ sở hữu và giới hạn lịch sử gửi tới LLM; tránh gửi toàn bộ hội thoại không cần thiết |
-| **Danh mục** | Cache ngắn hạn, ví dụ 5–15 phút; thay dữ liệu phải làm mới cache |
-| **Phôi và kết quả AI** | Kho ảnh + metadata trong database; cache theo phiên bản và chủ sở hữu; kiểm tra hạn trước khi dùng lại |
-| **Ảnh cá nhân của khách** | Đề xuất xóa sau 24 giờ; có nút xóa và tác vụ dọn dữ liệu. Thông báo việc gửi ảnh sang dịch vụ AI trước khi tải lên |
-| **Dữ liệu của tài khoản** | Chỉ giữ kết quả người dùng chọn lưu theo chính sách nhóm công bố; xóa ảnh nguồn phải làm mất hiệu lực cache liên quan |
-
-Mỗi API hồ sơ, hội thoại, ảnh và tác vụ đều phải kiểm tra chủ sở hữu. Cache không thay thế cơ chế xác thực. Chỉ bổ sung Redis nếu thực sự cần hoặc nhóm đã quen; database và cơ chế cache đơn giản có thời hạn đủ cho demo.
-
-### 2.5. Hợp đồng API dùng chung
-
-Lợi điều phối tệp hợp đồng; mỗi người phụ trách phần nghiệp vụ của mình. Chốt schema tối thiểu cuối N1, fixture và mã lỗi cuối N2.
-
-| API | Chủ trì | Kết quả chính |
-| :--- | :--- | :--- |
-| `POST /api/auth/register`, `/login`, `/logout`; `GET /api/session` | Lợi | Trạng thái khách/tài khoản và thông tin phiên |
-| `GET /api/products`, `GET /api/products/{id}` | Lợi | Sản phẩm, phân trang, lọc cơ bản, bảng size |
-| `GET /api/profile`, `PUT /api/profile` | Lợi | Hồ sơ chuẩn hóa đơn vị, `profileVersion` |
-| `GET /api/cart`; `POST`, `PATCH`, `DELETE /api/cart/items...` | Lợi | Size, số lượng, tổng giỏ được kiểm tra lại ở server |
-| `GET /api/recommendations`, `POST /api/search` | Tùng | ID sản phẩm được xếp hạng, lý do và bộ lọc |
-| `POST /api/chat`, `GET /api/conversations/{id}` | Tùng | Hội thoại, nội dung tư vấn và ID sản phẩm hợp lệ |
-| `POST /api/media`, `DELETE /api/media/{id}` | Trí | Ảnh hợp lệ, chủ sở hữu và thời hạn lưu |
-| `POST /api/avatars`, `POST /api/try-ons` | Trí | `jobId`, loại tác vụ, phiên bản hồ sơ và trạng thái ban đầu |
-| `GET /api/jobs/{id}`, `GET /api/try-ons` | Trí | Trạng thái từng bước, kết quả hoặc lỗi; lịch sử đúng chủ sở hữu |
-
-Schema chung phải thống nhất `productId`, `imageId`, `profileVersion`, đơn vị cm/kg, giá VND và thời gian ISO 8601. Tác vụ có trạng thái `queued`, `processing`, `completed`, `failed`; trạng thái giao diện chi tiết lấy từ `stage`. Lỗi dùng cấu trúc chung có `code`, `message`, `requestId`. Frontend gọi backend để lấy trạng thái, không nhận API key của nhà cung cấp.
 
 ---
 
-## CHƯƠNG 3. KẾ HOẠCH TRIỂN KHAI VÀ PHÂN CÔNG
+### 1.2. Thiết kế Cơ bản: Giao diện Phòng phối đồ AI & Camera Guide (Nguyễn Phúc Thành)
 
-### 3.1. Vai trò và quyền sở hữu mã nguồn
+Thành viên **Nguyễn Phúc Thành** tự tay thiết kế và lập trình giao diện Phòng thử đồ từ đầu tại thư mục `frontend/src/features/fitting-room/`.
 
-**Bảng 3.1. Phân hệ chính của từng thành viên**
+#### 1. Cấu trúc Layout 3 Cột (3-Column Layout)
+* **Cột 1: Tủ đồ & Bộ chọn Slot (Slot Selector Panel)**:
+  * Hiển thị các ô slot trực quan: `Top` (Áo thun/sơ mi), `Bottom` (Quần/Váy), `Outer` (Áo khoác), `Shoes` (Giày), `Accessory` (Phụ kiện).
+  * Danh sách đồ lấy từ catalog, người dùng nhấp chọn để gán vào slot; nếu chọn trùng nhóm slot (vd: 2 quần) sẽ tự động ghi đè và báo hiệu nhẹ.
+* **Cột 2: Khung hình Trung tâm & Trình diễn (Canvas Stage)**:
+  * Tích hợp **Camera Silhouette Guide**: Khi bật webcam/camera điện thoại, hiển thị khung viền mờ dáng người đứng thẳng giúp người dùng căn trọn vẹn từ đỉnh đầu đến gót chân.
+  * Hiển thị thanh tiến trình 2 bước: `[1] Đang tách nền trắng...` → `[2] Đang uốn nếp phối đồ...`.
+  * Bộ công cụ so sánh **Before / After** (dạng thanh trượt kéo ngang hoặc chuyển đổi tab xem ảnh gốc vs ảnh đã thử đồ).
+* **Cột 3: Bảng điều khiển & Hành động (Action Panel)**:
+  * Nút tải ảnh lên từ máy tính hoặc chụp từ camera.
+  * Danh sách tóm tắt các món đồ đang mặc thử kèm giá và bảng chọn size.
+  * Nút bấm: *"Bắt đầu phối đồ AI"*, *"Thêm cả set này vào giỏ hàng"*, *"Tải ảnh kết quả"*.
 
-| Thành viên | Vai trò chính | Phạm vi sở hữu | Trách nhiệm tích hợp |
+#### 2. Máy trạng thái giao diện (State Machine Diagram)
+```text
+[Khởi tạo: Chưa có ảnh]
+         │ (Bấm "Tải ảnh" hoặc "Bật Camera")
+         ▼
+[Chụp/Chọn ảnh] ──► [Kiểm tra kích thước Client-side]
+                            │
+                            ▼ (Ảnh hợp lệ)
+                 [Gửi sang Backend: Bước 1]
+                            │
+            ┌───────────────┴───────────────┐
+            ▼ (Thành công)                  ▼ (Lỗi: Thiếu chân/đầu/mờ)
+   [Hiển thị ảnh nền trắng]        [Hiển thị Toast lỗi tiếng Việt]
+            │                              └──► (Yêu cầu chụp lại)
+            ▼ (Chọn đồ & Bấm "Thử đồ")
+   [Gửi sang Backend: Bước 2]
+            │
+            ▼ (Hoàn tất)
+   [Hiển thị kết quả Before/After] ──► [Thêm vào giỏ / Tải về]
+```
+
+---
+
+### 1.3. Thiết kế Cơ bản: Backend Gateway, Database & Quản lý Phiên (Doãn Duy Lợi)
+
+Thành viên **Doãn Duy Lợi** tự tay thiết kế kiến trúc Backend Gateway tại `backend/src/`.
+
+#### 1. Lược đồ Cơ sở Dữ liệu Quan hệ (Relational DB Schema)
+```sql
+-- 1. Bảng Người dùng & Phiên
+CREATE TABLE users (
+    id VARCHAR(36) PRIMARY KEY,
+    email VARCHAR(255) UNIQUE,
+    password_hash VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE sessions (
+    id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    is_guest BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP
+);
+
+-- 2. Bảng Danh mục Sản phẩm Thời trang
+CREATE TABLE products (
+    id VARCHAR(36) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(50) NOT NULL,     -- 'tops', 'bottoms', 'outerwear', 'shoes'
+    slot VARCHAR(50) NOT NULL,         -- 'top', 'bottom', 'outer', 'shoes'
+    layer_level INT DEFAULT 1,         -- 1: Trong (T-shirt), 2: Ngoài (Blazer)
+    price DECIMAL(12, 2) NOT NULL,
+    sizes JSON,                        -- ["S", "M", "L", "XL"]
+    image_flat_url TEXT NOT NULL,      -- Ảnh chụp phẳng để thử AI
+    image_model_url TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Bảng Tác vụ Thử đồ & Quản lý Ảnh (TTL 24h)
+CREATE TABLE tryon_jobs (
+    id VARCHAR(36) PRIMARY KEY,
+    session_id VARCHAR(64) REFERENCES sessions(id) ON DELETE CASCADE,
+    original_image_path TEXT NOT NULL,
+    matted_image_path TEXT,            -- Kết quả Bước 1 (nền trắng #FFFFFF)
+    result_image_path TEXT,            -- Kết quả Bước 2
+    selected_product_ids JSON NOT NULL,-- ["prod_01", "prod_02"]
+    status VARCHAR(20) DEFAULT 'queued',-- 'queued','matting','fitting','completed','failed'
+    error_message TEXT,
+    cache_hash VARCHAR(64),            -- Hash kiểm tra trùng kết quả
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ttl_expires_at TIMESTAMP NOT NULL  -- Mặc định created_at + 24 hours
+);
+
+-- 4. Bảng Giỏ hàng
+CREATE TABLE cart_items (
+    id VARCHAR(36) PRIMARY KEY,
+    session_id VARCHAR(64) REFERENCES sessions(id) ON DELETE CASCADE,
+    product_id VARCHAR(36) REFERENCES products(id),
+    size VARCHAR(10) NOT NULL,
+    quantity INT DEFAULT 1,
+    outfit_group_id VARCHAR(36)        -- Đánh dấu các món thuộc cùng 1 set phối
+);
+```
+
+#### 2. Cơ chế Bảo mật Dữ liệu & Tự động Xóa ảnh sau 24h (Privacy Engine)
+* Mọi ảnh người dùng tải lên được gán `ttl_expires_at = NOW() + INTERVAL '24 HOURS'`.
+* Thiết lập một Cron Job (chạy mỗi 30 phút một lần):
+  ```javascript
+  // Pseudocode Cron Job xóa ảnh
+  const expiredJobs = await db.query("SELECT * FROM tryon_jobs WHERE ttl_expires_at < NOW()");
+  for (const job of expiredJobs) {
+      fs.unlinkSync(job.original_image_path);
+      if (job.matted_image_path) fs.unlinkSync(job.matted_image_path);
+      if (job.result_image_path) fs.unlinkSync(job.result_image_path);
+  }
+  await db.query("DELETE FROM tryon_jobs WHERE ttl_expires_at < NOW()");
+  ```
+
+#### 3. Reverse Proxy & Hàng đợi Điều phối sang PC của Trí
+* Gateway đóng vai trò điều phối tác vụ (Task Dispatcher).
+* Khi nhận request tạo job, Gateway tính toán `cache_hash = MD5(session_id + matted_img_hash + sorted_product_ids)`:
+  * Nếu hash đã tồn tại trong DB và còn hạn → Trả ngay kết quả `result_image_path` trong 0.2s.
+  * Nếu chưa có → Đưa vào queue và gọi sang URL của AI Microservice (`http://192.168.x.x:5001` hoặc `https://tri-pc.trycloudflare.com`).
+
+---
+
+### 1.4. Thiết kế Cơ bản: AI Stylist & Thuật toán Phân tầng Layering (Hoàng Lâm Tùng)
+
+Thành viên **Hoàng Lâm Tùng** tự tay thiết kế và lập trình module Stylist tại `backend/src/modules/stylist/`.
+
+#### 1. Chuẩn hóa Bộ Dataset 24 Sản phẩm của Shop
+Tùng thu thập, chuẩn hóa ảnh và biên soạn tệp metadata `data/products_dataset.json`:
+* 24 sản phẩm phân bổ đều: 6 Áo trong (`top`), 4 Áo khoác ngoài (`outer`), 6 Quần/Váy (`bottom`), 4 Giày (`shoes`), 4 Phụ kiện.
+* Mỗi sản phẩm có đầy đủ: Ảnh phẳng nền trong suốt/trắng, ảnh người mẫu mặc tham chiếu, mặt nạ nhị phân vùng áo (mask), và một đoạn mô tả chi tiết (dense prompt) để bạn Trí dùng train LoRA.
+
+#### 2. Thuật toán Tiền xử lý Set đồ & Sắp xếp Thứ tự Layer (Layering Algorithm)
+Khi người dùng bấm chọn nhiều món hoặc nhận gợi ý từ Stylist, thuật toán chuẩn hóa danh sách sản phẩm trước khi gửi sang AI Try-On:
+```javascript
+// Pseudocode Thuật toán Chuẩn hóa Set đồ
+function validateAndOrderOutfit(selectedProducts) {
+    const slots = {};
+    const messages = [];
+
+    // 1. Giải quyết xung đột slot (Món chọn sau ghi đè món chọn trước)
+    for (const prod of selectedProducts) {
+        if (slots[prod.slot]) {
+            messages.push(`Đã thay thế ${slots[prod.slot].name} bằng ${prod.name}`);
+        }
+        slots[prod.slot] = prod;
+    }
+
+    // 2. Sắp xếp thứ tự mặc lớp (Layering Order)
+    // Quy tắc: Top (Layer 1) -> Bottom -> Outer (Layer 2) -> Shoes
+    const orderedList = Object.values(slots).sort((a, b) => {
+        return a.layer_level - b.layer_level;
+    });
+
+    return { orderedProducts: orderedList, notifications: messages };
+}
+```
+
+#### 3. Thiết kế Prompt AI Stylist Chatbot
+Hệ thống sử dụng Gemini API hoặc OpenAI API với System Prompt chuyên gia thời trang:
+* *Vai trò*: Chuyên gia định hình phong cách cá nhân cho shop thời trang.
+* *Nhiệm vụ*: Đọc hồ sơ người dùng (chiều cao, cân nặng, tông da, dịp mặc), tìm kiếm trong 24 sản phẩm của shop và trả về lời tư vấn ngắn gọn kèm danh sách `product_ids` phù hợp.
+
+---
+
+### 1.5. Thiết kế Cơ bản: AI Vision Pipeline 2 Bước & Huấn luyện LoRA (An Đức Minh Trí)
+
+Thành viên **An Đức Minh Trí** tự tay thiết kế cấu trúc AI Microservice tại `ai-service/` và triển khai trên GPU PC của mình.
+
+#### 1. Quy trình Huấn luyện LoRA Offline (`scripts/train/train_lora.py`)
+* **Mô hình Base**: CatVTON hoặc Stable Diffusion Inpainting (`runwayml/stable-diffusion-inpainting`).
+* **Kỹ thuật**: Gắn LoRA adapters vào các tầng Cross-Attention của U-Net với tham số:
+  * Rank $r = 16$, LoRA Alpha $\alpha = 32$, LoRA Dropout $= 0.05$.
+  * Optimizer: `AdamW8bit`, Learning Rate: $1\times 10^{-4}$.
+  * Batch size: 2, Số epochs: 50–80.
+* **Tập dữ liệu**: 24 sản phẩm từ bạn Tùng (ảnh áo + ảnh mẫu mặc tương ứng).
+* **Kết quả đầu ra**: Tệp `fashion_lora.safetensors` (~120MB) ghi nhận đặc trưng chuẩn xác của các sản phẩm shop.
+* **Trích xuất số liệu học thuật**: Trí xuất log Loss theo từng Epoch và tính điểm SSIM để làm báo cáo khoa học.
+
+#### 2. BƯỚC 1: Kiểm tra Toàn thân & Tách nền trắng (`/api/ai/validate-and-matting`)
+* **Kiểm tra tiêu chuẩn**:
+  * Chạy **YOLOv8-Pose**: Trích xuất 17 keypoints.
+  * *Toàn thân*: Keypoints mũi/mắt/tai và mắt cá/bàn chân có $y$ nằm trong phạm vi $[0.05 \times H, 0.95 \times H]$.
+  * *Số lượng người*: Đếm bounding boxes có class `person`, yêu cầu $= 1$.
+  * *Độ nét*: $\text{Var}(\text{Laplacian}(I)) \ge 100$.
+  * *Nếu vi phạm*: Trả mã HTTP 400 kèm thông báo tiếng Việt cụ thể (VD: *"Ảnh chưa thấy rõ bàn chân, vui lòng lùi ra xa và chụp lại toàn thân"*).
+* **Tách nền chuyên dụng**:
+  * Đưa ảnh hợp lệ qua **BiRefNet** hoặc **RMBG-1.4**.
+  * Bóc tách nền cảnh cũ, giữ lại từng sợi tóc mảnh tự nhiên.
+  * Phủ màu nền mới là trắng thuần `#FFFFFF`. Kích thước và tỉ lệ ảnh gốc được giữ nguyên 100%.
+
+#### 3. BƯỚC 2: AI Virtual Try-On với Trọng số LoRA (`/api/ai/try-on`)
+* **Đầu vào**: Ảnh người mẫu nền trắng từ Bước 1 + Danh sách ảnh sản phẩm đã sắp xếp theo layer từ Tùng.
+* **Xử lý ghép đồ**:
+  * Phân tích pose người mẫu: hướng thân, độ nghiêng vai, góc gập cùi chỏ và đầu gối.
+  * Nạp Base Model gắn adapter `fashion_lora.safetensors`.
+  * Co nếp vải ôm theo chuyển động cơ thể; đồng nhất ánh sáng và bóng đổ giữa áo và cơ thể người.
+  * Ghép theo thứ tự lớp: Áo trong trước (`layer 1`) → Áo khoác ngoài sau (`layer 2`).
+  * Giữ nguyên 100% khuôn mặt, màu da, kiểu tóc, dáng người và nền trắng `#FFFFFF`. Không sinh dị tật bàn tay hay ngón tay thừa.
+
+---
+
+### 1.6. Chuẩn hóa Hợp đồng API Dùng chung (REST API Specifications)
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│                             DANH MỤC API DÙNG CHUNG CỦA HỆ THỐNG                     │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ 1. API CỬA HÀNG & PHIÊN (Do Doãn Duy Lợi phụ trách)                                  │
+│    GET  /api/session                 -> Lấy thông tin phiên khách / user             │
+│    GET  /api/products                -> Lấy danh sách 24 sản phẩm (có lọc theo slot) │
+│    POST /api/cart/items              -> Thêm sản phẩm hoặc nguyên set phối vào giỏ   │
+│                                                                                      │
+│ 2. API STYLIST & LOGIC TRANG PHỤC (Do Hoàng Lâm Tùng phụ trách)                      │
+│    POST /api/stylist/chat            -> Nhận tin nhắn, trả lời tư vấn & thẻ sản phẩm │
+│    POST /api/stylist/validate-outfit -> Nhận mảng sản phẩm, trả mảng đã xếp layer    │
+│                                                                                      │
+│ 3. API AI VISION TRY-ON (Do An Đức Minh Trí phụ trách - Chạy trên PC Trí)            │
+│    POST /api/ai/validate-and-matting -> Bước 1: Validate dáng + Tách nền trắng #FFF  │
+│    POST /api/ai/try-on               -> Bước 2: Ghép đồ bằng LoRA đã train           │
+│                                                                                      │
+│ 4. API ĐIỀU PHỐI TÁC VỤ THỬ ĐỒ (Do Doãn Duy Lợi kết nối Frontend <-> AI Trí)         │
+│    POST /api/fitting/create-job      -> Nhận ảnh, kiểm tra cache, gọi AI Trí         │
+│    GET  /api/fitting/jobs/:id        -> Polling trạng thái tiến trình 2 bước         │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# PHẦN 2. KẾ HOẠCH PHÂN CÔNG VÀ DANH MỤC CÔNG VIỆC (TASK BREAKDOWN)
+
+Mỗi thành viên đảm nhiệm đúng **40 giờ chuyên môn + 4 giờ việc chung + 4 giờ dự phòng = 48 giờ** (Tổng 240 giờ toàn dự án, chia đều 20% mỗi người).
+
+### 2.1. Phân định vai trò và quyền sở hữu mã nguồn
+
+| Thành viên | Phân hệ đảm nhiệm | Thư mục sở hữu mã nguồn | Trách nhiệm chính |
 | :--- | :--- | :--- | :--- |
-| **Nguyễn Xuân Tường** | Giao diện cửa hàng và Chatbot UI | `frontend/src/app/`, `components/ui/`, `features/shop/`, `features/chat/` | Design tokens, router, trang cửa hàng/giỏ/tài khoản, widget dùng chung; phối hợp Thành về giao diện và Tùng về hội thoại |
-| **Doãn Duy Lợi** | Backend nền tảng, dữ liệu và phiên người dùng | `backend/src/platform/`, `modules/catalog/`, `modules/profiles/`, `shared/contracts/`, `deploy/` | Database, auth/session, sản phẩm/giỏ, hợp đồng chung, cấu hình chạy; các module AI tự triển khai nghiệp vụ theo nền tảng này |
-| **Nguyễn Phúc Thành** | Giao diện phòng thử đồ và mannequin 2D | `frontend/src/features/fitting-room/` | Form số đo, export phôi, điều hướng từ cửa hàng/chatbot, hiển thị tiến trình và kết quả từ Trí |
-| **Hoàng Lâm Tùng** | AI Stylist, tìm kiếm và đề xuất | `backend/src/modules/stylist/`, `data/` | Dữ liệu sản phẩm, luật phối đồ, tư vấn size, LLM, lưu hội thoại; trả kết quả đúng hợp đồng cho Tường/Thành |
-| **An Đức Minh Trí** | Cá nhân hóa khuôn mặt và AI thử đồ | `backend/src/modules/tryon/` | Thử API, upload/kho ảnh, Face Swap, Try-On, tác vụ, cache và hạn lưu; bàn giao kết quả cho Thành |
+| **Nguyễn Xuân Tường** | Frontend: Duy trì Shop UI & Đấu nối Chatbot | `frontend/src/features/shop/`, `features/chat/`, `components/ui/` | **Giữ nguyên giao diện Cửa hàng có sẵn**; kết nối API sản phẩm thật; tích hợp widget Chatbot; điều hướng sang phòng thử |
+| **Nguyễn Phúc Thành** | Frontend: Phòng phối đồ AI & Camera Guide | `frontend/src/features/fitting-room/` | **Tự tay thiết kế mới từ đầu**: Layout 3 cột phòng thử; Camera guide; quản lý slot và lớp đồ; thanh trượt Before/After |
+| **Doãn Duy Lợi** | Backend: Gateway, Session, DB & Bảo mật | `backend/src/platform/`, `modules/catalog/`, `modules/cart/` | **Tự tay thiết kế mới từ đầu**: DB schema, quản lý phiên; Cron job dọn ảnh 24h; Reverse proxy kết nối tới PC của Trí; Caching |
+| **Hoàng Lâm Tùng** | AI Stylist, Phân tầng Layering & Dataset | `backend/src/modules/stylist/`, `data/` | **Tự tay thiết kế mới từ đầu**: Chuẩn hóa 24 sản phẩm cho Trí train LoRA; Chatbot LLM Stylist; thuật toán xếp layer và giải quyết xung đột slot |
+| **An Đức Minh Trí** | AI Microservice: Train LoRA & Pipeline 2 bước | `ai-service/`, `scripts/train/` | **Tự tay thiết kế mới từ đầu**: Môi trường GPU PC; script train LoRA; API Bước 1 (YOLO + BiRefNet); API Bước 2 (Try-On LoRA); đo chỉ số SSIM |
 
-Mỗi người tự làm kiểm thử, tài liệu và slide phần mình. Review chéo và quyết định tích hợp thực hiện trong giờ chung; không giao toàn bộ sửa lỗi, viết báo cáo hoặc triển khai cho một thành viên.
+---
 
-### 3.2. Bảng hạng mục công việc
+### 2.2. Chi tiết 30 đầu việc chuyên môn (T01 – T30)
 
-**Đơn vị ước lượng: giờ làm việc tập trung.** Các công việc chuyên môn dưới đây có đúng một người chịu trách nhiệm chính. Thời gian phối hợp nhóm được tính riêng ở G01–G04, không cộng lại vào giờ của người hỗ trợ. Mỗi thành viên có cùng cấu trúc: **32 giờ xây dựng + 4 giờ kiểm thử/sửa lỗi + 4 giờ tài liệu = 40 giờ chuyên môn**.
+#### 1. Nguyễn Xuân Tường — Frontend Cửa hàng & Chatbot UI
+* **T01 (6h - N1-N2)**: Rà soát và chuẩn hóa bộ Design Tokens, Component dùng chung từ UI shop sẵn có để hỗ trợ bạn Thành ghép nối phòng thử.
+* **T02 (10h - N3-N5)**: Duy trì UI Shop hiện tại, thay thế dữ liệu mock bằng API danh mục 24 sản phẩm thật từ Backend Lợi; bổ sung nút *"Thử đồ"* trên từng thẻ sản phẩm.
+* **T03 (8h - N6-N8)**: Tích hợp Widget Chatbot AI Stylist vào góc phải giao diện bán hàng; hiển thị thẻ sản phẩm mini do bot gợi ý kèm nút *"Phối cả set này"*.
+* **T04 (8h - N8-N10)**: Hoàn thiện tính năng Giỏ hàng hỗ trợ lưu nguyên set đồ đã phối từ phòng thử; quản lý đăng nhập/đăng xuất theo phiên.
+* **T05 (4h - N11-N12)**: Kiểm thử responsive và luồng mua sắm tổng thể; sửa lỗi giao diện và chặn lỗi người dùng.
+* **T06 (4h - N13)**: Viết tài liệu UX Cửa hàng, chụp ảnh giao diện và chuẩn bị 2-3 slide thuyết trình.
 
-#### 3.2.1. Nguyễn Xuân Tường — Giao diện cửa hàng và Chatbot UI
+#### 2. Nguyễn Phúc Thành — Frontend Phòng phối đồ AI & Camera Guide (Tự tay thiết kế)
+* **T07 (6h - N1-N2)**: Tự tay thiết kế và dựng khung Layout 3 cột của Phòng phối đồ AI (Cột 1: Tủ đồ/Slot, Cột 2: Khung hình, Cột 3: Bảng điều khiển).
+* **T08 (10h - N3-N5)**: Thiết kế module Camera Guide: Vẽ khung hình người mờ (Silhouette Overlay) trên video/canvas để người dùng căn toàn thân; kiểm tra độ phân giải ảnh client-side.
+* **T09 (8h - N6-N8)**: Xây dựng bộ quản lý Slot trang phục (Top, Bottom, Outer, Shoes); lập trình tính năng tự động ghi đè món khi chọn trùng vị trí; nhận danh sách món từ Chatbot sang.
+* **T10 (8h - N8-N10)**: Thiết kế thanh trạng thái hiển thị tiến trình 2 bước AI; lập trình thanh trượt so sánh Before/After; hiển thị thông báo lỗi tiếng Việt nếu ảnh Bước 1 bị từ chối.
+* **T11 (4h - N11-N12)**: Kiểm thử toàn diện phòng phối đồ với nhiều độ phân giải màn hình; tối ưu tốc độ render ảnh lớn.
+* **T12 (4h - N13)**: Viết tài liệu thiết kế UX phòng thử đồ, vẽ sơ đồ máy trạng thái và chuẩn bị slide/video demo.
 
-| Mã | Hạng mục | Nội dung và sản phẩm bàn giao | Giờ | Thời gian | Phụ thuộc / tiêu chí nghiệm thu |
-| :--- | :--- | :--- | :---: | :--- | :--- |
-| **T01** | Thiết kế/sinh giao diện và khung frontend | Bộ thiết kế cửa hàng, chat, giỏ, tài khoản; tokens màu từ đặc tả; layout, navbar, router, component nút/input/card, fixture hiển thị | 6 | N1–N2 | Thống nhất với Thành; cuối N1 có tokens và khung để hai người làm song song; cuối N2 các route và component nền chạy được |
-| **T02** | Cửa hàng mới và danh sách sản phẩm | Hero theo hồ sơ, profile pill, lưới 4/2 cột, tìm kiếm, lọc/sắp xếp, card 3:4, AI Match, CTA; nối API thật khi có | 10 | N3–N5 | T13, T19; lọc và CTA hoạt động với fixture; kết nối T15/T22 trước N10 |
-| **T03** | Widget Chatbot dùng chung | Bong bóng/mở rộng, quick prompts, trạng thái gửi/lỗi, hội thoại, product mini-card, nút “Thử ngay”, giữ trạng thái khi đổi trang | 8 | N6–N8 | T21 và hợp đồng chat; N7 gửi được tin nhắn thật và mở được sản phẩm trong phòng thử; N8 xử lý đủ trạng thái |
-| **T04** | Giỏ hàng, tài khoản và hoàn thiện responsive | UI đăng ký/đăng nhập/đăng xuất, giỏ hàng chọn size/số lượng, tổng tiền; nối phiên và khôi phục trạng thái; hoàn thiện desktop/tablet/mobile | 8 | N8–N10 | T14, T15; khách dùng được và đăng nhập không làm mất giỏ; widget không che thao tác chính |
-| **T05** | Kiểm thử và sửa lỗi phần sở hữu | Kiểm thử lọc, cart, auth UI, chuyển trang, hội thoại, trạng thái rỗng/lỗi và responsive; lưu checklist và bằng chứng | 4 | N11–N12 | T01–T04; không còn lỗi chặn thao tác cửa hàng/chat thuộc phạm vi của Tường |
-| **T06** | Báo cáo và demo phần giao diện | Viết UX/design system/luồng mua–chat; chuẩn bị 2–3 slide và đoạn demo cửa hàng–chatbot; tự đưa vào bản chung | 4 | N13 | Có ảnh giao diện cuối, mô tả thành phần và bằng chứng kiểm thử |
-| | **Tổng chuyên môn của Tường** | | **40** | | |
+#### 3. Doãn Duy Lợi — Backend Gateway, Session, DB & Bảo mật (Tự tay thiết kế)
+* **T13 (6h - N1-N2)**: Khởi tạo cấu trúc dự án Backend Express/Fastify; thiết kế và chạy Migration lược đồ CSDL (Users, Sessions, Products, TryOnJobs, Cart).
+* **T14 (10h - N3-N5)**: Xây dựng cơ chế Quản lý phiên khách (Cookie HttpOnly) và **Bộ dọn dẹp ảnh tạm sau 24 giờ (TTL 24h Cron Job)** đảm bảo quyền riêng tư.
+* **T15 (8h - N6-N8)**: Viết API CRUD danh mục sản phẩm và giỏ hàng; hỗ trợ lưu trữ thông tin cả bộ đồ được phối chung một nhóm.
+* **T16 (8h - N8-N10)**: Thiết kế Reverse Proxy và Asynchronous Task Dispatcher kết nối tới PC của Trí (qua LAN/Tunnel); lập trình bộ nhớ đệm (Cache) theo mã hash ảnh.
+* **T17 (4h - N11-N12)**: Kiểm thử hiệu năng Backend, kiểm tra việc tự động xóa ảnh sau 24h và tính an toàn của phiên khách.
+* **T18 (4h - N13)**: Viết tài liệu kiến trúc Backend SOA, vẽ sơ đồ ERD, cung cấp file `.env.example` và chuẩn bị slide báo cáo.
 
-#### 3.2.2. Nguyễn Phúc Thành — Phòng thử đồ và mannequin 2D
+#### 4. Hoàng Lâm Tùng — AI Stylist, Phân tầng Layering & Dataset Shop (Tự tay thiết kế)
+* **T19 (6h - N1-N2)**: Thu thập và chuẩn hóa bộ Dataset 24 sản phẩm của shop (ảnh phẳng, ảnh mẫu, mask, dense caption) bàn giao cho bạn Trí train LoRA.
+* **T20 (10h - N3-N5)**: Thiết kế ma trận phối màu thời trang và thuật toán gợi ý set đồ theo phong cách/dịp mặc.
+* **T21 (8h - N6-N8)**: Tích hợp LLM và thiết kế System Prompt chuyên gia thời trang; xây dựng API Chatbot Stylist trả về thẻ sản phẩm thật có trong kho.
+* **T22 (8h - N8-N10)**: Lập trình thuật toán kiểm tra xung đột slot và sắp xếp danh sách trang phục theo thứ tự phân tầng layer trước khi gửi sang AI thử đồ.
+* **T23 (4h - N11-N12)**: Kiểm thử 20 kịch bản tư vấn phong cách; đo lường độ chính xác của chatbot và khắc phục lỗi hallucination.
+* **T24 (4h - N13)**: Viết tài liệu thuật toán thời trang, prompt engineering, bảng ma trận phối màu và chuẩn bị slide báo cáo.
 
-| Mã | Hạng mục | Nội dung và sản phẩm bàn giao | Giờ | Thời gian | Phụ thuộc / tiêu chí nghiệm thu |
-| :--- | :--- | :--- | :---: | :--- | :--- |
-| **T07** | Thiết kế/sinh phòng thử đồ và phôi kiểm chứng | Wireframe ba cột 25/45/30, responsive; xác định đơn vị và giới hạn số đo; tạo phôi bán tả thực tối thiểu có mặt, tư thế đứng rõ | 6 | N1–N2 | Bàn giao phôi thử 768×1024 cho Trí cuối N1; N2 thống nhất thay đổi cần thiết từ thử nghiệm AI |
-| **T08** | Mannequin SVG/Canvas và export PNG | Tách vùng đầu/thân/chân; ánh xạ số đo sang tỉ lệ; 5–6 màu da; đồ nền đơn giản; preview và xuất ảnh nền `#F3F4F6` | 10 | N3–N5 | T07, kết luận T25; thay số đo không kéo méo mặt; PNG đúng 768×1024 và mô tả rõ tính minh họa |
-| **T09** | Giao diện ba cột và luồng tác vụ | Form/sliders, upload-preview-xóa ảnh mặt, nút cập nhật phôi, tủ đồ/tab, chuyển phôi–kết quả, tiến trình và lỗi; nối API ảnh/avatar/try-on | 8 | N6–N8 | T14, T15, T26, T27; N7 chạy được một luồng chọn áo → chờ → xem kết quả thật |
-| **T10** | Đồng bộ hồ sơ và điều hướng thử đồ | Nhận `item_id` từ cửa hàng/chat; tự kích hoạt đúng một lần khi phôi hợp lệ; đồng bộ profile pill; chống kết quả cũ ghi đè, hoàn thiện responsive | 8 | N8–N10 | T03, T21, T28; đổi số đo làm phôi cũ hết hiệu lực; thêm giỏ đúng sản phẩm/size; trạng thái không lẫn giữa tác vụ |
-| **T11** | Kiểm thử và sửa lỗi phòng thử đồ | Kiểm tra giới hạn số đo, màu da, PNG, upload/xóa ảnh, không có ảnh mặt, tác vụ lỗi/trễ/trùng, responsive | 4 | N11–N12 | T07–T10; lưu checklist và ảnh các trạng thái chính |
-| **T12** | Báo cáo và demo mannequin/phòng thử | Viết quy tắc dựng hình, giới hạn số đo, giao diện ba cột; chuẩn bị 2–3 slide và đoạn demo chỉnh dáng–xem kết quả | 4 | N13 | Có sơ đồ export phôi và minh họa trước/sau; tự đưa nội dung vào bản chung |
-| | **Tổng chuyên môn của Thành** | | **40** | | |
+#### 5. An Đức Minh Trí — AI Microservice: Train LoRA & Pipeline 2 bước (Tự tay thiết kế)
+* **T25 (6h - N1-N2)**: Thiết lập môi trường CUDA/PyTorch trên GPU PC; cấu hình script huấn luyện `train_lora.py`; kiểm tra chạy thử nghiệm không lỗi OOM.
+* **T26 (10h - N3-N5)**: Xây dựng endpoint **Bước 1**: Kiểm tra toàn thân bằng YOLOv8-pose (đủ đầu, chân, 1 người, đủ sáng/nét) + Tách nền trắng `#FFFFFF` bằng BiRefNet; trả thông báo lỗi tiếng Việt nếu ảnh chụp sai.
+* **T27 (8h - N6-N8)**: Thực hiện **huấn luyện mô hình LoRA** trên 24 sản phẩm của shop trong 50–80 epochs; ghi log hàm mất mát (Loss) và xuất tệp `fashion_lora.safetensors`.
+* **T28 (8h - N8-N10)**: Xây dựng endpoint **Bước 2**: Nạp Base Model gắn LoRA weights; uốn nếp vải theo pose; phối nhiều món theo layer; xử lý pose che khuất và chống dị tật ngón tay.
+* **T29 (4h - N11-N12)**: Trích xuất biểu đồ Loss Curve theo Epochs; đo đạc định lượng chỉ số SSIM/CLIP-Score; chạy benchmark trên 20+ bộ ảnh người thật.
+* **T30 (4h - N13)**: Viết báo cáo kỹ thuật AI chuyên sâu, chuẩn bị slide thuyết trình và quay video demo chạy trực tiếp từ PC.
 
-#### 3.2.3. Doãn Duy Lợi — Backend nền tảng, phiên và dữ liệu
+---
 
-| Mã | Hạng mục | Nội dung và sản phẩm bàn giao | Giờ | Thời gian | Phụ thuộc / tiêu chí nghiệm thu |
-| :--- | :--- | :--- | :---: | :--- | :--- |
-| **T13** | Khung backend, database và hợp đồng | Khởi tạo cấu hình/DB/middleware; schema user, session, profile, product, cart; thống nhất ID, mã lỗi và API với Tùng/Trí; khung migration cho module riêng | 6 | N1–N2 | Cuối N1 có schema API tối thiểu; N2 backend health check và fixture dùng chung chạy được |
-| **T14** | Auth, phiên khách và hồ sơ | Đăng ký, hash mật khẩu, đăng nhập/đăng xuất, cookie phiên, đổi ID khi login, profileVersion, chuyển/gộp dữ liệu khách sang user | 10 | N3–N5 | T13; tải lại trang vẫn khôi phục phiên, không đọc/sửa được hồ sơ người khác; Tùng/Trí gắn dữ liệu theo cơ chế chủ sở hữu chung |
-| **T15** | Sản phẩm và giỏ hàng | Nạp seed từ T19, API danh sách/chi tiết/lọc cơ bản, size/tồn kho; giỏ theo phiên/user, kiểm tra giá và số lượng ở backend | 8 | N6–N8 | T13, T19; N7 có danh mục thật và thao tác thêm giỏ; N8 hoàn thiện cập nhật/xóa/kiểm tra size |
-| **T16** | Tích hợp nền tảng và triển khai | Đấu nối module stylist/tryon vào entrypoint; cấu hình môi trường, kho ảnh, giới hạn request, HTTPS/cookie theo môi trường; script chạy/seed, bản triển khai | 8 | N8–N10 | T21, T27; môi trường demo dùng được API thật; mỗi chủ module cung cấp biến môi trường và hướng dẫn phần mình |
-| **T17** | Kiểm thử và sửa lỗi backend nền tảng | Kiểm tra auth, ownership, guest→user, profileVersion, giỏ hàng, khởi tạo DB và health check; lưu kết quả | 4 | N11–N12 | T13–T16; hai phiên không xem được dữ liệu riêng của nhau; khởi động lại theo hướng dẫn thành công |
-| **T18** | Báo cáo kiến trúc và hướng dẫn chạy | Viết sơ đồ thành phần/ERD/auth/session; chuẩn bị 2–3 slide, hướng dẫn cấu hình và đoạn demo phiên khách→tài khoản | 4 | N13 | Có `.env.example` không chứa khóa thật, lệnh chạy/seed và mô tả quyền truy cập |
-| | **Tổng chuyên môn của Lợi** | | **40** | | |
-
-#### 3.2.4. Hoàng Lâm Tùng — AI Stylist, tìm kiếm và đề xuất
-
-| Mã | Hạng mục | Nội dung và sản phẩm bàn giao | Giờ | Thời gian | Phụ thuộc / tiêu chí nghiệm thu |
-| :--- | :--- | :--- | :---: | :--- | :--- |
-| **T19** | Dữ liệu sản phẩm và bộ tình huống tư vấn | Chuẩn bị 24 sản phẩm, ảnh/metadata/bảng size và nguồn ảnh; quy tắc tông da, dịp mặc, form; schema chat/search, bộ câu hỏi mẫu | 6 | N1–N2 | Phối hợp T13; cuối N2 có seed và fixture cho frontend; chọn trước ít nhất 10 món để thử AI |
-| **T20** | Bộ lọc và xếp hạng đề xuất | Lọc theo ngân sách, loại, size, tồn kho; chấm điểm theo hồ sơ/sở thích; trả ID và lý do; route và persistence trong module stylist | 10 | N3–N5 | T13, T19; đầu ra chỉ chứa sản phẩm hợp lệ, quy tắc và mức phù hợp giải thích được |
-| **T21** | Chatbot LLM và lịch sử hội thoại | Trích xuất nhu cầu, hỏi thêm, gọi bộ đề xuất, diễn giải; lưu hội thoại theo phiên/user; trả product mini-card; gửi ngữ cảnh trang và sản phẩm | 8 | N6–N8 | T14, T20; N7 hội thoại thật nối được widget; N8 có kiểm tra ID, fallback lỗi và giới hạn ngữ cảnh |
-| **T22** | Tìm kiếm thông minh và tư vấn size | Câu tìm kiếm tự nhiên → bộ lọc; dùng size chart + số đo; nhãn AI Match; gợi ý set gồm nhiều món; cập nhật hồ sơ mới trong hội thoại | 8 | N8–N10 | T15, T20, T21; có fallback tìm tên/từ khóa; thiếu bảng size không tự kết luận chắc chắn |
-| **T23** | Đánh giá và sửa lỗi AI Stylist | Chạy 15 tình huống: ngân sách, vóc dáng, tông da, dịp mặc, thiếu thông tin, không có hàng và đổi hồ sơ; đo tính hợp lệ của ID và bộ lọc | 4 | N11–N12 | T19–T22; lưu bảng đầu vào/đầu ra/đạt-chưa đạt; sửa lỗi bịa sản phẩm hoặc vượt bộ lọc bắt buộc |
-| **T24** | Báo cáo và demo AI Stylist | Viết pipeline, quy tắc xếp hạng/size, prompt và kết quả đánh giá; chuẩn bị 2–3 slide và đoạn demo tư vấn–đề xuất | 4 | N13 | Có ví dụ thành công, thất bại và giới hạn; tự đưa nội dung vào bản chung |
-| | **Tổng chuyên môn của Tùng** | | **40** | | |
-
-#### 3.2.5. An Đức Minh Trí — Face Swap và AI Virtual Try-On
-
-| Mã | Hạng mục | Nội dung và sản phẩm bàn giao | Giờ | Thời gian | Phụ thuộc / tiêu chí nghiệm thu |
-| :--- | :--- | :--- | :---: | :--- | :--- |
-| **T25** | Kiểm chứng API và chốt pipeline | Thử phôi từ T07, Face Swap, VTON và khả năng giữ mặt/tư thế; thử áo, quần/váy, đầm; ghi giá, độ trễ, điều kiện ảnh và giới hạn | 6 | N1–N2 | Cuối N2 có báo cáo POC cùng ảnh thật hoặc lỗi cụ thể; chốt provider/loại đồ hỗ trợ và phương án dự phòng, không kéo dài nghiên cứu mở |
-| **T26** | Upload, kho ảnh và tạo phôi cá nhân hóa | Route upload/xóa ảnh, kiểm tra loại/dung lượng; nhận phôi PNG; adapter Face Swap tùy chọn, tạo base avatar và lưu metadata/chủ sở hữu | 10 | N3–N5 | T13, T14, T25; không ảnh mặt vẫn dùng được; dữ liệu của từng phiên tách biệt; thành công/lỗi đều có trạng thái |
-| **T27** | Tác vụ Virtual Try-On và kết quả | Adapter VTON, tạo/lấy trạng thái tác vụ, lưu result image và lịch sử; tham chiếu sản phẩm hợp lệ; nối API cho phòng thử | 8 | N6–N8 | T26, fixture/ảnh T19; N7 có một cặp phôi–áo chạy xuyên suốt; N8 hoàn thiện trạng thái và loại đồ đã chốt |
-| **T28** | Cache, chống trùng, thời hạn và lỗi | Cache theo chủ sở hữu/profileVersion/ảnh/cấu hình; khóa yêu cầu trùng; timeout và retry có giới hạn; xử lý URL hết hạn, xóa dữ liệu, quota API | 8 | N8–N10 | T14, T27; không chạy lại khi cache còn hợp lệ; đổi ảnh/số đo không dùng phôi cũ; không retry mù gây tính phí lặp |
-| **T29** | Đánh giá và sửa lỗi pipeline ảnh | Kiểm thử ít nhất 10 cặp phôi–trang phục, có biến thể màu da/vóc dáng; ghi giữ mặt/màu/họa tiết, lỗi vùng cổ/cơ thể và thời gian | 4 | N11–N12 | T25–T28; có tập ảnh và bảng đánh giá; lỗi dữ liệu/tác vụ xử lý được; lỗi mô hình được ghi nhận riêng |
-| **T30** | Báo cáo và demo pipeline AI | Viết sơ đồ hai giai đoạn, cache, giới hạn chất lượng/chi phí; chuẩn bị 2–3 slide, ảnh kết quả và video dự phòng | 4 | N13 | Có kết quả thực, cấu hình mô hình và giới hạn; ghi rõ phần nào dùng phương án dự phòng |
-| | **Tổng chuyên môn của Trí** | | **40** | | |
-
-#### 3.2.6. Công việc chung và dự phòng
-
-Các giờ trong bảng này là **giờ của từng người**, có quy đổi ra tổng giờ của cả nhóm để tránh tính thiếu hoặc tính trùng.
+### 2.3. Đầu việc chung (G01 – G04) và Quỹ dự phòng (R01)
 
 | Mã | Hạng mục | Nội dung và trách nhiệm | Giờ/người | Tổng giờ nhóm | Thời gian |
 | :--- | :--- | :--- | :---: | :---: | :--- |
-| **G01** | Chốt phạm vi và hợp đồng | Cả 5 người xác nhận schema, mock, giao diện, ngân sách API và kết luận POC; Tường điều phối, Trí trình bày kết quả thử | 1 | 5 | N1–N2 |
-| **G02** | Tích hợp luồng xuyên suốt | Cả nhóm chạy và xác định lỗi giao diện–phiên–chat–phôi–try-on; Thành điều phối, mỗi chủ module sửa phần mình trong giờ chuyên môn | 1 | 5 | N7 |
-| **G03** | Review chéo và chốt phiên bản | Mỗi người review một phân hệ theo bảng 3.7; Lợi tổng hợp trạng thái bản chạy và lỗi còn lại | 1 | 5 | N11–N12 |
-| **G04** | Ghép hồ sơ và tổng duyệt | Mỗi người đưa phần báo cáo/slide đã chuẩn bị vào bản chung; Tùng điều phối nội dung, Trí điều phối kịch bản demo; cả nhóm tổng duyệt | 1 | 5 | N14 |
-| **R01** | Dự phòng đều cho từng người | Mỗi người có 4 giờ cho lỗi khó, điều chỉnh sau POC, hỗ trợ hoặc sửa sau review; phần dùng thực tế phải ghi theo người | 4 | 20 | Phân bổ N1–N14 khi cần |
-| | **Tổng chung + dự phòng** | | **8** | **40** | |
+| **G01** | Họp chốt thiết kế cơ bản & Chuẩn API | Cả 5 thành viên thống nhất kiến trúc, schema database, tunnel kết nối PC Trí và bộ dataset 24 món | 1 | 5 | N1–N2 |
+| **G02** | Ghép luồng tích hợp hệ thống đầu tiên | Cả nhóm chạy luồng xuyên suốt: Web → Gateway → AI PC Trí (Bước 1 → Bước 2 LoRA) → Web | 1 | 5 | N7 |
+| **G03** | Review chéo và Chốt phiên bản đóng băng | Đánh giá chéo chất lượng giữa các phân hệ; Lợi tổng hợp bug tracker và chốt bản Release Candidate | 1 | 5 | N11–N12 |
+| **G04** | Ghép tài liệu tổng hợp và Tổng duyệt Demo | Ghép báo cáo lớn, kiểm tra slide chung, phân vai kịch bản thuyết trình và chạy thử demo trực tiếp | 1 | 5 | N14 |
+| **R01** | Quỹ thời gian dự phòng cá nhân | Dành cho sự cố mạng tunnel, tinh chỉnh siêu tham số LoRA hoặc sửa lỗi phát sinh sau review | 4 | 20 | N1–N14 |
+| | **Tổng công việc chung + Dự phòng** | | **8** | **40** | |
 
-### 3.3. Tổng hợp khối lượng và nguyên tắc công bằng
+---
 
-**Bảng 3.3. Ngân sách thời gian của từng thành viên**
+### 2.4. Tổng hợp ngân sách thời gian (Cân bằng 48h / người)
 
-| Thành viên | Xây dựng | Kiểm thử/sửa lỗi | Báo cáo/slide/demo | Việc chung | Kế hoạch | Dự phòng | Tổng nguồn lực | Tỷ trọng |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Nguyễn Xuân Tường** | 32 | 4 | 4 | 4 | **44** | 4 | **48** | **20%** |
-| **Doãn Duy Lợi** | 32 | 4 | 4 | 4 | **44** | 4 | **48** | **20%** |
-| **Nguyễn Phúc Thành** | 32 | 4 | 4 | 4 | **44** | 4 | **48** | **20%** |
-| **Hoàng Lâm Tùng** | 32 | 4 | 4 | 4 | **44** | 4 | **48** | **20%** |
-| **An Đức Minh Trí** | 32 | 4 | 4 | 4 | **44** | 4 | **48** | **20%** |
-| **Tổng nhóm** | **160** | **20** | **20** | **20** | **220** | **20** | **240** | **100%** |
+| Thành viên | Phân hệ đảm nhiệm | Xây dựng / Train | Kiểm thử / Fix | Báo cáo / Slide | Việc chung | Kế hoạch | Dự phòng | Tổng cộng | Tỷ trọng |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Nguyễn Xuân Tường** | Frontend Shop UI & Chat Widget | 32 | 4 | 4 | 4 | **44** | 4 | **48 giờ** | **20%** |
+| **Nguyễn Phúc Thành** | Frontend Phòng phối đồ & Camera | 32 | 4 | 4 | 4 | **44** | 4 | **48 giờ** | **20%** |
+| **Doãn Duy Lợi** | Backend Gateway, Session & Data | 32 | 4 | 4 | 4 | **44** | 4 | **48 giờ** | **20%** |
+| **Hoàng Lâm Tùng** | AI Stylist, Layering & Dataset | 32 | 4 | 4 | 4 | **44** | 4 | **48 giờ** | **20%** |
+| **An Đức Minh Trí** | AI Microservice, Train LoRA & Try-On | 32 | 4 | 4 | 4 | **44** | 4 | **48 giờ** | **20%** |
+| **TỔNG TOÀN DỰ ÁN** | **Toàn bộ hệ thống SOA & AI** | **160** | **20** | **20** | **20** | **220** | **20** | **240 giờ** | **100%** |
 
-Tổng nguồn lực tương đương khoảng **3,4 giờ/người/ngày** trên 14 ngày lịch. Khoảng ngày trong bảng công việc là cửa sổ thực hiện; mỗi người sắp giờ theo phụ thuộc, tránh dồn việc vào ngày họp. N7 ưu tiên luồng tối thiểu; phần hoàn thiện còn lại của T03/T09/T15/T21/T27 tiếp tục đến N8.
+---
 
-**Cơ sở cân bằng độ khó:**
+# PHẦN 3. TIẾN ĐỘ, KIỂM THỬ VÀ NGHIỆM THU HỌC THUẬT
 
-- **Tường:** nhiều bề mặt giao diện và component dùng chung; không gánh backend hoặc tự viết nghiệp vụ AI.
-- **Lợi:** nền tảng nhiều phụ thuộc và triển khai; Tùng/Trí tự phụ trách backend, persistence và kiểm thử của hai module AI.
-- **Thành:** ít trang hơn nhưng có dựng hình, export ảnh, trạng thái bất đồng bộ và đồng bộ phiên bản hồ sơ.
-- **Tùng:** vừa chuẩn bị dữ liệu vừa làm đề xuất, tìm kiếm, size và hội thoại; dùng luật + LLM, không huấn luyện mô hình riêng.
-- **Trí:** tập trung vào rủi ro tích hợp API ảnh; thử nghiệm bị giới hạn ở N1–N2, không giao thêm quản trị hệ thống hoặc toàn bộ báo cáo.
+### 3.1. Lộ trình 14 ngày và Ma trận bàn giao
 
-Số giờ là ước lượng để lập kế hoạch, không thay thế đánh giá đóng góp thực tế. Kiểm tra lại cuối N2, N7 và N10. Nếu một người dự kiến vượt **4 giờ** so với ngân sách kế hoạch, chuyển một đầu việc có đầu ra rõ cho người còn khả năng hỗ trợ, ưu tiên dùng dự phòng đều trước; cập nhật cả người nhận, số giờ và phụ thuộc. Không tính số commit, số dòng code hoặc số trang báo cáo làm thước đo công bằng.
+```text
+[N1-N2] Tùng (Dataset 24 sản phẩm + Caption) ──────► Trí (Nạp GPU PC test train LoRA)
+        Tường (Cung cấp Layout Shop có sẵn) ───────► Thành (Thiết kế Phòng thử đồng bộ)
+        Lợi (Khởi tạo DB Schema & API Gateway) ────► Cả nhóm (Dùng mock contracts)
+        Trí (Thiết lập GPU PC & script train) ─────► Cả nhóm (Xác nhận hạ tầng AI)
 
-### 3.4. Phụ thuộc và lịch bàn giao
+[N3-N5] Lợi (Session, Upload API & Proxy) ─────────► Thành (Nối Camera Guide & Upload)
+        Tùng (Thuật toán Layering & Gợi ý set) ────► Thành (UI chọn đồ theo vị trí)
+        Trí (Hoàn thiện API Bước 1 BiRefNet) ──────► Thành (Hiển thị ảnh nền trắng #FFFFFF)
 
-**Bảng 3.4. Bàn giao trung gian**
+[N6-N8] Trí (Train xong LoRA, Deploy Bước 2) ──────► Lợi (Gateway Dispatcher) ──► Thành (Hiển thị kết quả thử đồ)
+        Tùng (Chatbot LLM tư vấn) ─────────────────► Tường (Widget Chat Shop) ──► Thành (Chuyển set đồ thử)
 
-| Hạn | Sản phẩm bàn giao | Người giao → người nhận | Mục đích |
-| :--- | :--- | :--- | :--- |
-| **Cuối N1** | Tokens/component nền và router; phôi mannequin thử; schema API tối thiểu | Tường → Thành; Thành → Trí; Lợi ↔ cả nhóm | Tách công việc frontend và cho phép thử API ảnh sớm |
-| **Cuối N2** | Fixture/schema đã chốt; seed 24 sản phẩm; POC Face Swap/VTON và danh sách loại đồ được bật | Lợi/Tùng → cả nhóm; Trí → Thành và cả nhóm | Mọi người tiếp tục bằng mock thống nhất; kết luận sớm tính khả thi pipeline |
-| **Cuối N5** | Shop dựng xong với fixture; PNG mannequin; phiên/profile API; recommendation API; upload/base-avatar API | Tường, Thành, Lợi, Tùng, Trí trao đổi theo hợp đồng | Đủ nền tảng để ghép luồng thật; các phần không chờ nhau qua trao đổi thủ công |
-| **Cuối N7** | Một hội thoại thật → một sản phẩm thật → một tác vụ thử đồ thật → ảnh kết quả | Cả nhóm tại G02 | Chứng minh luồng chính; dùng phiên khách và sản phẩm/phôi đã kiểm chứng |
-| **Cuối N8** | Các API và trạng thái đầy đủ của chat/catalog/try-on; UI đã kết nối | Tường/Thành ↔ Lợi/Tùng/Trí | Hoàn thành tích hợp các nhánh còn lại sau luồng tối thiểu |
-| **Cuối N10** | Bản triển khai với auth/cart, tìm kiếm thông minh, cache, xử lý lỗi và cấu hình demo | Mỗi người bàn giao phần sở hữu; Lợi kiểm tra bản chạy | Đóng băng tính năng và chuyển sang nghiệm thu |
-| **Cuối N12** | Checklist, kết quả AI, review chéo và danh sách giới hạn còn lại | Mỗi người → cả nhóm | Chốt phiên bản; phân biệt lỗi ứng dụng với giới hạn mô hình |
-| **Cuối N13** | Nội dung báo cáo, 2–3 slide/người và đoạn demo phần mình | Cả 5 người → tài liệu chung | G04 chỉ cần ghép, kiểm tra và tổng duyệt |
-| **Cuối N14** | Mã nguồn, hướng dẫn chạy, báo cáo, slide, video demo và bảng đóng góp thực tế | Cả nhóm | Hoàn tất bàn giao |
+[N9-N10] Lợi (Cache & Dọn ảnh tạm 24h) ───────────► Cả nhóm (Bản MVP tích hợp hoàn chỉnh)
+[N11-N12] Trí (Đồ thị Loss, SSIM) + Cả nhóm ──────► Bảng nghiệm thu học thuật & Đóng băng mã nguồn
+[N13-N14] Ghép tài liệu, slide báo cáo, video demo và tổng duyệt thuyết trình.
+```
 
-**Nguyên tắc tránh chờ phụ thuộc:** Dùng fixture từ N2, thay adapter sang API thật khi bàn giao. Khi đổi schema, người sở hữu đề xuất và cập nhật hợp đồng cùng các bên bị ảnh hưởng trước khi merge. Mỗi người tạo migration trong phạm vi module của mình; Lợi rà soát thứ tự chạy chung.
+---
 
-### 3.5. Mốc tiến độ và tiêu chí nghiệm thu
+### 3.2. 10 Kịch bản kiểm thử tích hợp End-to-End (K01 – K10)
 
-**Bảng 3.5. Milestones**
+| Mã | Tên kịch bản | Thao tác thực hiện | Kết quả mong đợi | Phụ trách chính |
+| :--- | :--- | :--- | :--- | :--- |
+| **K01** | Kiểm tra ảnh thiếu chân / thiếu đầu | Người dùng tải ảnh chụp chỉ thấy từ đầu đến thắt lưng | AI Bước 1 chặn lại ngay lập tức; hiển thị thông báo tiếng Việt: *"Ảnh chưa thấy rõ bàn chân, vui lòng lùi ra xa và chụp lại toàn thân"*; không gọi Bước 2 | Trí + Thành |
+| **K02** | Kiểm tra ảnh có nhiều người | Tải ảnh chụp nhóm 2 người trở lên | Báo lỗi tiếng Việt: *"Ảnh có nhiều hơn 1 người, vui lòng chỉ chụp một mình bạn"* | Trí + Thành |
+| **K03** | Tách nền ảnh đạt chuẩn | Tải ảnh toàn thân rõ nét trong phòng ngủ | Nền cũ bị xóa hoàn toàn; thay bằng nền trắng thuần `#FFFFFF`; viền tóc tự nhiên, không rách viền, giữ 100% gương mặt và tỉ lệ người | Trí + Thành |
+| **K04** | Phối 1 món đơn lẻ có LoRA Weights | Chọn ảnh từ Bước 1 và chọn 1 áo thun độc quyền của shop | Áo mới thay thế áo cũ; cổ áo, vai áo khớp chuẩn dáng đứng; logo và họa tiết đặc trưng của shop hiện rõ ràng nhờ LoRA | Trí + Thành |
+| **K05** | Phối cả bộ (Áo + Quần + Giày) | Chọn đồng thời 3 món khác slot | Cả 3 món xuất hiện đồng bộ trên người; ống quần vừa chân, giày nằm đúng bàn chân; ánh sáng tổng thể đồng nhất | Trí + Thành + Tùng |
+| **K06** | Xử lý trùng slot (Chọn 2 chiếc quần) | Người dùng chọn Quần jeans, sau đó bấm chọn thêm Quần âu | Hệ thống tự động bỏ Quần jeans, áp dụng Quần âu; gửi thông báo: *"Đã đổi sang Quần âu cho phần thân dưới"* | Tùng + Thành |
+| **K07** | Phối nhiều lớp (Layering) | Chọn 1 Áo thun trắng (`layer: 1`) và 1 Áo blazer (`layer: 2`) | AI dựng đúng thứ tự: Áo thun bên trong, blazer khoác bên ngoài tự nhiên, không bị lộn xộn lớp | Trí + Tùng |
+| **K08** | Tư thế tay che khuất (Khoanh tay) | Người dùng chụp ảnh tư thế khoanh tay trước ngực | Áo mới được luồn phía sau cánh tay; bàn tay và cổ tay khoanh phía trước được giữ nguyên không bị che mất | Trí + Thành |
+| **K09** | Tư vấn từ Chatbot → Chuyển sang thử đồ | Hỏi Chatbot: "Gợi ý set đồ đi phỏng vấn", bấm "Thử cả set này" | Điều hướng sang phòng phối đồ; tự động nạp sẵn Áo sơ mi và Quần tây vào các slot tương ứng | Tùng + Tường + Thành |
+| **K10** | Kiểm tra Cache & Bảo mật ảnh | Thử lại đúng set đồ đã thử trước đó; kiểm tra sau 24 giờ | Lần thử lại lấy kết quả tức thì từ Cache (<0.5s); sau 24h ảnh gốc của phiên khách tự động bị dọn dẹp khỏi ổ cứng server | Lợi + Trí |
 
-| Mốc | Hạn | Kết quả phải có | Tiêu chí nghiệm thu |
-| :--- | :--- | :--- | :--- |
-| **M1 — Chốt đầu vào và tính khả thi** | N2 | Thiết kế, hợp đồng, seed và kết quả POC ảnh | Có phôi đầu vào, ảnh kết quả hoặc log lỗi, nhận định khả năng dùng từng API/loại đồ, ngân sách; phần không đạt được ghi giảm phạm vi |
-| **M2 — Chạy luồng chính** | N7 | Shop → chat → chọn áo → phôi → try-on → kết quả | Chạy bằng API thật ít nhất một cặp đã kiểm chứng; giữ cùng phiên khách; nếu phải dùng đầu vào dự phòng phải đánh dấu rõ |
-| **M3 — Hoàn thiện bản MVP** | N10 | Giao diện mới, auth/session/cart, đề xuất, tìm kiếm, pipeline và cache | Có bản chạy chung; chuyển trang không mất hội thoại/hồ sơ; không tạo tác vụ trả phí trùng trong cùng thao tác |
-| **M4 — Chốt chất lượng** | N12 | Kiểm thử luồng, phân quyền, responsive và chất lượng AI | Không còn lỗi chặn luồng; ID sản phẩm hợp lệ; hai phiên tách biệt; có bảng đánh giá 15 câu tư vấn và ít nhất 10 cặp ảnh |
-| **M5 — Bàn giao** | N14 | Repo, tài liệu, slide và demo | Thành viên khác khởi động được theo hướng dẫn; đủ phần đóng góp của 5 người; số liệu và hình ảnh demo có nguồn từ kết quả thực |
+---
 
-**Bảng 3.6. Bộ kịch bản kiểm thử chung**
+### 3.3. Hồ sơ học thuật phục vụ báo cáo
 
-| Mã | Tình huống | Kết quả mong đợi | Chủ trì kiểm tra |
-| :--- | :--- | :--- | :--- |
-| **K01** | Vào website khi chưa đăng nhập, chuyển Shop ↔ Fitting Room, tải lại | Giữ phiên, hồ sơ, giỏ và đúng lịch sử chat trong hạn lưu | Lợi + Tường |
-| **K02** | Lọc/tìm kiếm theo loại, dịp mặc, giá hoặc câu tự nhiên | Sản phẩm tồn tại, đúng bộ lọc bắt buộc; không có hàng thì báo rõ | Tùng + Tường |
-| **K03** | Hỏi chatbot, bấm “Thử ngay” | Điều hướng đúng ID; phôi hợp lệ mới tạo tác vụ; không khởi tạo lặp khi render lại | Tường + Thành |
-| **K04** | Chỉnh số đo/màu da, xuất phôi | Preview cập nhật, đầu không méo, PNG 768×1024; phôi cũ hết hiệu lực cho yêu cầu mới | Thành + Trí |
-| **K05** | Có/không có ảnh mặt hoặc ảnh không hợp lệ | Có đường đi không Face Swap; ảnh sai được báo lỗi; giới hạn đầu vào được hướng dẫn | Trí + Thành |
-| **K06** | Chọn lại cùng món, đổi ảnh mặt hoặc nhận kết quả tác vụ cũ | Tái sử dụng cache đúng điều kiện; đổi đầu vào tạo phiên bản mới; không hiển thị nhầm kết quả | Trí + Thành |
-| **K07** | AI lỗi, chậm hoặc hết quota | Có trạng thái lỗi và thử lại có kiểm soát; giữ trang thao tác được; không phát sinh retry vô hạn | Trí + Tùng |
-| **K08** | Hai phiên cố lấy hội thoại/ảnh/tác vụ của nhau | Bị từ chối; không lộ dữ liệu hoặc URL ảnh riêng | Lợi + Tùng + Trí |
-| **K09** | Khách thêm giỏ, đăng nhập, đăng xuất; chọn size thiếu dữ liệu | Gộp dữ liệu đúng quy tắc; giá/số lượng kiểm tra server; thiếu size yêu cầu chọn | Lợi + Tường |
-| **K10** | Desktop, tablet, mobile; xóa ảnh và hết hạn lưu | Không che CTA, khung model/chat dùng được; ảnh và cache bị thu hồi theo chính sách | Thành + Tường + Trí |
+Để chứng minh năng lực kỹ thuật và đạt điểm tối đa từ hội đồng phản biện môn học SOA:
+1. **Đồ thị Hội tụ Hàm mất mát (Training Loss Curve)**: Biểu đồ thể hiện Loss giảm dần và ổn định qua các Epochs khi huấn luyện LoRA trên GPU của Trí.
+2. **Bảng Đối sánh Định lượng (Quantitative Evaluation Table)**:
+   * **SSIM (Structural Similarity)**: Đo độ bảo toàn cấu trúc cơ thể người và họa tiết áo.
+   * **CLIP Score**: Đo mức độ khớp giữa văn bản mô tả sản phẩm và ảnh kết quả sau khi sinh.
+3. **Sơ đồ Kiến trúc Hướng Dịch vụ (SOA Architecture Diagram)**: Trình bày sự độc lập, tách rời (loose coupling) giữa Web Gateway, Stylist Microservice và AI Microservice.
 
-Người phối hợp xác nhận trong G02/G03 hoặc trong thời gian kiểm thử phần mình. Việc sửa lỗi thuộc chủ sở hữu module, tránh dồn toàn bộ lỗi tích hợp cho một người.
+---
 
-### 3.6. Review, kiểm thử và phối hợp
+### 3.4. Phân chia thuyết trình và kịch bản demo
 
-**Bảng 3.7. Vòng review chéo — mỗi người review đúng một phân hệ**
+* **Nguyễn Xuân Tường (Nhóm trưởng)**: Mở đầu báo cáo, giới thiệu bài toán thương mại điện tử thời trang, kiến trúc tổng quan hệ thống và demo giao diện Cửa hàng, Giỏ hàng.
+* **Nguyễn Phúc Thành**: Thuyết trình chi tiết thiết kế Phòng phối đồ AI, giải thích cơ chế Camera Silhouette Guide và demo tương tác thử đồ đa món Before/After.
+* **Hoàng Lâm Tùng**: Thuyết trình về AI Stylist, thuật toán giải quyết xung đột slot, cơ chế sắp xếp thứ tự phân tầng layer và quy trình chuẩn bị dataset 24 sản phẩm.
+* **An Đức Minh Trí**: Thuyết trình chuyên sâu về AI Vision Pipeline 2 bước: Thuật toán kiểm tra toàn thân YOLOv8, kỹ thuật tách nền BiRefNet, quy trình Huấn luyện LoRA trên GPU PC và phân tích các chỉ số học thuật (Loss, SSIM).
+* **Doãn Duy Lợi**: Thuyết trình về Kiến trúc Backend Gateway SOA, cơ chế bảo mật xóa ảnh sau 24h (TTL 24h), quản lý phiên khách, hệ thống Caching và tổng kết dự án.
 
-| Người review | Phân hệ được review | Trọng tâm |
-| :--- | :--- | :--- |
-| **Nguyễn Xuân Tường** | Phòng thử đồ của Thành | Tương tác, điều hướng, form, tiến trình và responsive |
-| **Nguyễn Phúc Thành** | AI Stylist của Tùng | Hồ sơ, sản phẩm thật, nút thử và dữ liệu thiếu |
-| **Hoàng Lâm Tùng** | Pipeline AI của Trí | Khóa cache, dữ liệu đầu vào, trạng thái và bằng chứng chất lượng |
-| **An Đức Minh Trí** | Backend nền tảng của Lợi | Phiên, ownership, cấu hình, giới hạn request và tích hợp module |
-| **Doãn Duy Lợi** | Shop/Chat UI của Tường | Gọi API, đăng nhập, giỏ, giữ phiên và xử lý lỗi |
-
-Quy tắc phối hợp:
-
-1. Mỗi đầu việc có issue theo mã T/G; cập nhật đầu ra, giờ thực tế và vướng mắc ngay trên issue. Cập nhật ngắn hằng ngày được tính trong thời gian của đầu việc.
-2. Dùng nhánh `feature/<ma-task>-<noi-dung>`, PR có mô tả và cách kiểm chứng. Thay đổi thuộc module khác trao đổi với chủ sở hữu trước; không sửa chồng file dùng chung.
-3. Mỗi người hoàn thiện kiểm thử có ý nghĩa cho phần mình: luồng người dùng, quyền truy cập, điều kiện cache và dữ liệu đầu ra. Không cần kiểm thử chi tiết trang trí CSS.
-4. File khởi tạo/router hợp nhất và hợp đồng chung do người sở hữu điều phối; các thành viên cung cấp module mount được để giảm xung đột.
-5. API key, mật khẩu, ảnh cá nhân và dữ liệu không được phép công khai không đưa vào repo. Chỉ dùng dữ liệu demo được phép sử dụng.
-6. Dữ liệu giả trong giai đoạn làm UI phải được đánh dấu; bản nghiệm thu dùng API thật. Video/ảnh lưu sẵn phục vụ dự phòng được ghi rõ là kết quả của lần chạy trước.
-7. Sau N10, lỗi được phân theo mức chặn luồng/cần sửa/có thể ghi giới hạn. Tính năng mới chuyển sang giai đoạn sau.
-
-### 3.7. Rủi ro và phương án xử lý
-
-| Rủi ro | Mốc phát hiện | Xử lý | Phụ trách chính |
-| :--- | :--- | :--- | :--- |
-| **Face Swap không nhận mặt trên mannequin** | N2 | Điều chỉnh phôi bán tả thực, thử đầu vào đối chứng; nếu vẫn lỗi thì dùng mặt mặc định và ghi tính năng cá nhân hóa chưa đạt. Không coi việc ghép ảnh mặt bằng cắt dán là tương đương pipeline yêu cầu | Trí, Thành |
-| **VTON không nhận tư thế hoặc làm biến dạng phôi 2D** | N2 | Thử tư thế/phôi có đồ nền rõ, ảnh sản phẩm đơn giản. Có thể dùng người mẫu bán tả thực/ảnh người làm đường demo dự phòng; ghi rõ việc giảm phạm vi và giới hạn số đo | Trí, Thành |
-| **Quần/váy/đầm không được API hỗ trợ đủ tốt** | N2 và N8 | Giữ lọc/gợi ý sản phẩm; chỉ bật “Thử AI” cho nhóm đã kiểm chứng, thông báo nhóm chưa hỗ trợ. Ưu tiên áo để giữ luồng chính; ghi các nhóm chưa đạt vào phạm vi tồn đọng | Trí, Tùng, Tường |
-| **API tốn phí, giới hạn lượt hoặc phản hồi chậm** | Từ N1 | Đặt trần chi phí và quota; ngân sách thử dự kiến 50–100 ảnh, điều chỉnh sau khi xác minh đơn giá; chống trùng, cache hợp lệ, timeout và video dự phòng | Trí; Tùng kiểm soát phần LLM |
-| **LLM bịa sản phẩm hoặc tư vấn thiếu dữ liệu** | N7 | Backend kiểm tra ID, lọc cứng giá/tồn kho, hỏi bổ sung số đo; fallback quy tắc và tìm từ khóa | Tùng |
-| **Sinh giao diện đẹp nhưng khó tích hợp** | N2–N5 | Sinh theo design tokens và component đã chốt; thay mock bằng hợp đồng chung; yêu cầu thao tác chạy thật, rà trên nhiều cỡ màn hình | Tường, Thành |
-| **Backend dùng chung làm nghẽn tiến độ** | N2–N7 | Lợi bàn giao schema/fixture sớm; Tùng và Trí tự triển khai route, persistence và adapter của module mình; frontend phát triển trên fixture | Lợi, Tùng, Trí |
-| **Khối lượng thực tế lệch giữa các thành viên** | N2, N7, N10 | Đo giờ còn lại và độ khó, dùng dự phòng, chuyển một phần có đầu ra độc lập như test, seed, UI trạng thái hoặc tài liệu; ghi lại phân công mới | Cả nhóm |
-| **Môi trường demo hoặc mạng gặp sự cố** | N10–N14 | Có hướng dẫn chạy local, dữ liệu seed, ảnh/video của kết quả thật và phiên bản đã chốt | Lợi và từng chủ module |
-
-**Thứ tự ưu tiên khi thiếu thời gian:** giữ phiên khách → danh mục thật → mannequin xuất được ảnh → thử một áo bằng AI thật → chatbot gắn sản phẩm thật → giỏ/đăng nhập → tối ưu chất lượng và tiện ích. Các yêu cầu chưa đạt phải ghi vào bảng tồn đọng; không thay đổi tiêu chí nghiệm thu bằng cách gọi đầu vào hoặc kết quả dự phòng là tính năng hoàn chỉnh.
-
-### 3.8. Hồ sơ bàn giao và phân chia thuyết trình
-
-Mỗi thành viên bàn giao: mã nguồn module, cấu hình cần thiết, cách kiểm thử, bằng chứng kết quả, giới hạn còn lại, phần báo cáo và 2–3 slide. Giờ chuẩn bị này đã nằm trong T06/T12/T18/T24/T30; ghép và tổng duyệt tính ở G04.
-
-| Thành viên | Phần báo cáo/slide | Phần demo và phản biện |
-| :--- | :--- | :--- |
-| **Nguyễn Xuân Tường** | Thiết kế giao diện, luồng bán hàng và chatbot UI | Từ cửa hàng tới thẻ sản phẩm trong chat; giải thích component và trạng thái dùng chung |
-| **Doãn Duy Lợi** | Kiến trúc, ERD, auth/session, giỏ và triển khai | Khách→đăng nhập, khôi phục dữ liệu; giải thích API và phân quyền |
-| **Nguyễn Phúc Thành** | Mannequin, ánh xạ số đo, export PNG, giao diện phòng thử | Chỉnh dáng, chọn màu da, chuyển chế độ xem; giải thích giới hạn minh họa cơ thể |
-| **Hoàng Lâm Tùng** | Dữ liệu, đề xuất, tìm kiếm, size và đánh giá chatbot | Hỏi theo hồ sơ/ngân sách; giải thích vì sao chọn sản phẩm, xử lý thiếu dữ liệu |
-| **An Đức Minh Trí** | Face Swap, VTON, tác vụ, cache, chi phí và đánh giá ảnh | Pipeline ảnh và cache; giải thích chất lượng thực tế, lỗi mô hình và phương án dự phòng |
-
-**Checklist cuối dự án:**
-
-- [ ] Giao diện mới của Shop, Fitting Room, Chat và tài khoản đã kết nối dữ liệu.
-- [ ] Mannequin thay đổi được, xuất PNG đúng kích thước; mức độ chính xác được mô tả đúng.
-- [ ] Có kết quả kiểm chứng Face Swap/VTON, danh sách loại trang phục hỗ trợ và bảng yêu cầu còn tồn đọng.
-- [ ] Chatbot xuất hiện ở hai trang, giữ hội thoại, trả sản phẩm thật và điều hướng thử đúng món.
-- [ ] Khách chưa đăng nhập dùng được theo phiên; tài khoản lưu/khôi phục dữ liệu đúng quy tắc.
-- [ ] Có chống yêu cầu AI trùng, cache theo phiên bản, giới hạn chi phí và xử lý lỗi.
-- [ ] Kiểm tra được việc tách dữ liệu của hai người dùng; ảnh có thời hạn lưu và cơ chế xóa.
-- [ ] Có bản chạy chung, hướng dẫn local, cấu hình mẫu và seed.
-- [ ] Có kết quả kiểm thử, đánh giá AI, báo cáo, slide và video dự phòng.
-- [ ] Bảng giờ thực tế, nhiệm vụ đã chuyển giao và phần trình bày của cả 5 thành viên đã được cập nhật.
-
-**Tổng kế hoạch:** 30 đầu việc chuyên môn, 4 đầu việc chung, dự phòng đều cho 5 người; **220 giờ kế hoạch + 20 giờ dự phòng = 240 giờ**, mỗi thành viên **48 giờ và 20% nguồn lực**.
+---
+*(Bản thiết kế cơ bản đã hoàn thiện đầy đủ khung kiến trúc, lược đồ database, hợp đồng API và thông số kỹ thuật để từng thành viên tự tay thiết kế và lập trình mã nguồn).*

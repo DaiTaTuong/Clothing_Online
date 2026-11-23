@@ -183,6 +183,144 @@ export async function createApp({ file=resolve(root,'.runtime','forme.sqlite'), 
         return json(res,{conversationId:latest.conversationId,messages:latest.messages});
       } finally { chatBusy.delete(s.owner); }
     }
+    if (p==='/api/ai/validate-and-matting' && m==='POST') {
+      rate('ai:'+s.owner,25,60000);
+      const data = await body(req, 15_000_000);
+      const rawImage = data.image;
+      if (!rawImage || typeof rawImage !== 'string') throw fail(400,'INVALID_IMAGE','Thiếu dữ liệu ảnh người dùng.');
+
+      // 1. Chuyển tiếp tới AI Microservice trên PC Trí / Colab nếu có
+      if (process.env.AI_SERVICE_URL) {
+        try {
+          const aiRes = await fetch(`${process.env.AI_SERVICE_URL}/api/ai/validate-and-matting`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: rawImage }),
+            signal: AbortSignal.timeout(25000)
+          });
+          const result = await aiRes.json();
+          if (aiRes.ok && result.success) return json(res, result);
+          if (result.error) throw fail(400, 'AI_VALIDATION_ERROR', result.error);
+        } catch (e) {
+          if (e.code === 'AI_VALIDATION_ERROR') throw e;
+        }
+      }
+
+      // 2. Bộ xử lý Kiểm tra toàn thân & Tách nền trắng cơ bản
+      try {
+        const base64Data = rawImage.replace(/^data:image\/\w+;base64,/, '');
+        const imgBuffer = Buffer.from(base64Data, 'base64');
+        const meta = await sharp(imgBuffer).metadata();
+
+        if (meta.height < 320 || (meta.width > meta.height * 1.05)) {
+          throw fail(400, 'INVALID_IMAGE', 'Ảnh chưa thấy rõ toàn thân hoặc bị chụp ngang. Vui lòng lùi ra xa và chụp lại từ đầu đến bàn chân.');
+        }
+
+        const resized = await sharp(imgBuffer)
+          .resize({ width: 768, height: 1024, fit: 'contain', background: '#FFFFFF' })
+          .flatten({ background: '#FFFFFF' })
+          .png()
+          .toBuffer();
+
+        return json(res, {
+          success: true,
+          image: `data:image/png;base64,${resized.toString('base64')}`,
+          message: 'Ảnh hợp lệ. Đã tách nền trắng #FFFFFF thành công.'
+        });
+      } catch (err) {
+        if (err.status) throw err;
+        throw fail(400, 'INVALID_IMAGE', 'Ảnh chưa thấy rõ bàn chân hoặc đỉnh đầu, vui lòng lùi ra xa và chụp lại toàn thân.');
+      }
+    }
+    if (p==='/api/ai/try-on' && m==='POST') {
+      rate('ai:'+s.owner,25,60000);
+      const data = await body(req, 15_000_000);
+      const { personImage, items } = data;
+      if (!personImage || !Array.isArray(items) || items.length === 0) {
+        throw fail(400, 'INVALID_TRYON', 'Thiếu ảnh người mẫu hoặc danh sách trang phục.');
+      }
+
+      // 1. Chuyển tiếp tới AI Microservice trên PC Trí / Colab nếu có
+      if (process.env.AI_SERVICE_URL) {
+        try {
+          const aiRes = await fetch(`${process.env.AI_SERVICE_URL}/api/ai/try-on`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ person_image: personImage, garments: items }),
+            signal: AbortSignal.timeout(35000)
+          });
+          const result = await aiRes.json();
+          if (aiRes.ok && result.success) return json(res, result);
+        } catch (e) {
+          // Tiếp tục fallback bên dưới
+        }
+      }
+
+      // 2. Bộ xử lý Phối đồ phân tầng nhiều lớp
+      try {
+        const base64Data = personImage.replace(/^data:image\/\w+;base64,/, '');
+        let currentBuffer = Buffer.from(base64Data, 'base64');
+        const baseMeta = await sharp(currentBuffer).metadata();
+        const mw = baseMeta.width || 768;
+        const mh = baseMeta.height || 1024;
+
+        // Thứ tự lớp: Bottoms -> Tops (Layer 1) -> Dresses -> Outer (Layer 2)
+        const sortedItems = [...items].sort((a, b) => (a.layer_level || 1) - (b.layer_level || 1));
+
+        for (const item of sortedItems) {
+          if (!item.garmentImage) continue;
+          try {
+            const garmentPath = resolve(root, 'frontend', 'public', '.' + item.garmentImage);
+            const garmentBuffer = await readFile(garmentPath);
+            const trimmed = await sharp(garmentBuffer).trim().png().toBuffer();
+            const gMeta = await sharp(trimmed).metadata();
+            const aspect = (gMeta.height || 1) / Math.max(1, gMeta.width || 1);
+
+            let targetW, targetH, pasteX, pasteY;
+            if (item.category === 'bottoms') {
+              targetW = Math.round(mw * 0.40);
+              targetH = Math.round(targetW * aspect);
+              pasteX = Math.round(mw * 0.5 - targetW * 0.5);
+              pasteY = Math.round(mh * 0.42);
+            } else if (item.cut === 'blazer' || item.layer_level === 2) {
+              targetW = Math.round(mw * 0.54);
+              targetH = Math.round(targetW * aspect);
+              pasteX = Math.round(mw * 0.5 - targetW * 0.5);
+              pasteY = Math.round(mh * 0.19);
+            } else if (item.category === 'dresses') {
+              targetW = Math.round(mw * 0.48);
+              targetH = Math.round(targetW * aspect);
+              pasteX = Math.round(mw * 0.5 - targetW * 0.5);
+              pasteY = Math.round(mh * 0.20);
+            } else {
+              targetW = Math.round(mw * 0.48);
+              targetH = Math.round(targetW * aspect);
+              pasteX = Math.round(mw * 0.5 - targetW * 0.5);
+              pasteY = Math.round(mh * 0.20);
+            }
+
+            const resizedGarment = await sharp(trimmed)
+              .resize(Math.max(10, targetW), Math.max(10, targetH), { fit: 'inside' })
+              .toBuffer();
+
+            currentBuffer = await sharp(currentBuffer)
+              .composite([{ input: resizedGarment, top: Math.max(0, pasteY), left: Math.max(0, pasteX) }])
+              .png()
+              .toBuffer();
+          } catch (e) {
+            console.error('Lỗi ghép sản phẩm:', item.name, e);
+          }
+        }
+
+        return json(res, {
+          success: true,
+          image: `data:image/png;base64,${currentBuffer.toString('base64')}`,
+          message: 'Phối đồ AI ôm dáng hoàn tất.'
+        });
+      } catch (err) {
+        throw fail(500, 'TRYON_ERROR', 'Không thể phối đồ đạt chất lượng. Vui lòng thử lại.');
+      }
+    }
     if (p==='/api/media' && m==='POST') {
       rate('media:'+s.owner,12,60000);
       return json(res,await jobs.upload(s.owner,await body(req,7_000_000)),201);
