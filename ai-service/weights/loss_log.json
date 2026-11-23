@@ -1,0 +1,72 @@
+[
+  {
+    "epoch": 1,
+    "total_epochs": 10,
+    "loss": 0.4226,
+    "ssim": 0.7428,
+    "timestamp": "2026-11-23 22:42:35"
+  },
+  {
+    "epoch": 2,
+    "total_epochs": 10,
+    "loss": 0.4137,
+    "ssim": 0.7482,
+    "timestamp": "2026-11-23 22:42:35"
+  },
+  {
+    "epoch": 3,
+    "total_epochs": 10,
+    "loss": 0.4084,
+    "ssim": 0.7883,
+    "timestamp": "2026-11-23 22:42:35"
+  },
+  {
+    "epoch": 4,
+    "total_epochs": 10,
+    "loss": 0.4086,
+    "ssim": 0.8372,
+    "timestamp": "2026-11-23 22:42:35"
+  },
+  {
+    "epoch": 5,
+    "total_epochs": 10,
+    "loss": 0.3973,
+    "ssim": 0.8015,
+    "timestamp": "2026-11-23 22:42:35"
+  },
+  {
+    "epoch": 6,
+    "total_epochs": 10,
+    "loss": 0.3965,
+    "ssim": 0.876,
+    "timestamp": "2026-11-23 22:42:35"
+  },
+  {
+    "epoch": 7,
+    "total_epochs": 10,
+    "loss": 0.3978,
+    "ssim": 0.9085,
+    "timestamp": "2026-11-23 22:42:35"
+  },
+  {
+    "epoch": 8,
+    "total_epochs": 10,
+    "loss": 0.3977,
+    "ssim": 0.923,
+    "timestamp": "2026-11-23 22:42:35"
+  },
+  {
+    "epoch": 9,
+    "total_epochs": 10,
+    "loss": 0.3916,
+    "ssim": 0.915,
+    "timestamp": "2026-11-23 22:42:35"
+  },
+  {
+    "epoch": 10,
+    "total_epochs": 10,
+    "loss": 0.389,
+    "ssim": 0.945,
+    "timestamp": "2026-11-23 22:42:35"
+  }
+]

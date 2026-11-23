@@ -4,8 +4,8 @@ import sharp from 'sharp';
 const dataUri = (data, type = 'png') => `data:image/${type};base64,${Buffer.from(data).toString('base64')}`;
 const faceVersion = '278a81e7ebb22db98bcba54de985d22cc1abeead2754eb1f2af717247be69b34';
 export const providerSettings = () => ({
-  aiCategories: process.env.FASHN_API_KEY ? (process.env.TRYON_AI_CATEGORIES || '').split(',').map(s=>s.trim()).filter(s=>['tops','bottoms','dresses'].includes(s)) : [],
-  faceSwap: Boolean(process.env.REPLICATE_API_TOKEN && process.env.FACE_SWAP_ENABLED === '1'),
+  aiCategories: process.env.AI_SERVICE_URL ? ['tops','bottoms','dresses'] : (process.env.FASHN_API_KEY ? (process.env.TRYON_AI_CATEGORIES || '').split(',').map(s=>s.trim()).filter(s=>['tops','bottoms','dresses'].includes(s)) : []),
+  faceSwap: Boolean(process.env.AI_SERVICE_URL || (process.env.REPLICATE_API_TOKEN && process.env.FACE_SWAP_ENABLED === '1')),
   stylist: process.env.OPENAI_API_KEY ? 'llm' : 'rules',
 });
 async function request(url, token, body) {
@@ -28,12 +28,92 @@ async function imageData(value, domain) {
   }
   return sharp(result,{limitInputPixels:20_000_000}).resize({width:1024,height:1365,fit:'inside',withoutEnlargement:true}).png().toBuffer();
 }
-export async function virtualTryOn(base, product) {
+export async function localGarmentTryOn(base, product, fullOutfit = null) {
+  const meta = await sharp(base).metadata();
+  const mw = meta.width || 768;
+  const mh = meta.height || 1024;
+  
+  const itemsToDrape = [];
+  const outfit = (fullOutfit && (fullOutfit.top || fullOutfit.bottom || fullOutfit.dress)) ? fullOutfit : { [product.category]: product };
+  
+  if (outfit.bottom) itemsToDrape.push({ item: outfit.bottom, cat: 'bottoms' });
+  if (outfit.top) itemsToDrape.push({ item: outfit.top, cat: 'tops' });
+  if (outfit.dress) itemsToDrape.push({ item: outfit.dress, cat: 'dresses' });
+  if (itemsToDrape.length === 0 && product) itemsToDrape.push({ item: product, cat: product.category });
+  
+  let currentBase = base;
+  for (const { item, cat } of itemsToDrape) {
+    try {
+      const garment = await readFile(new URL('../../../../frontend/public' + item.garmentImage, import.meta.url));
+      const trimmed = await sharp(garment).trim().toBuffer();
+      const gMeta = await sharp(trimmed).metadata();
+      const gw = gMeta.width || 1;
+      const gh = gMeta.height || 1;
+      const aspect = gh / gw;
+      
+      let targetW, targetH, pasteX, pasteY;
+      if (cat === 'tops') {
+        targetW = Math.round(mw * 0.48);
+        targetH = Math.round(targetW * aspect);
+        const maxH = Math.round(mh * 0.28);
+        if (targetH > maxH) { targetH = maxH; targetW = Math.round(targetH / aspect); }
+        pasteX = Math.round(mw * 0.5 - targetW * 0.5);
+        pasteY = Math.round(mh * 0.205);
+      } else if (cat === 'bottoms') {
+        targetW = Math.round(mw * 0.38);
+        targetH = Math.round(targetW * aspect);
+        const maxH = Math.round(mh * 0.45);
+        if (targetH > maxH) { targetH = maxH; targetW = Math.round(targetH / aspect); }
+        pasteX = Math.round(mw * 0.5 - targetW * 0.5);
+        pasteY = Math.round(mh * 0.40);
+      } else {
+        targetW = Math.round(mw * 0.46);
+        targetH = Math.round(targetW * aspect);
+        const maxH = Math.round(mh * 0.56);
+        if (targetH > maxH) { targetH = maxH; targetW = Math.round(targetH / aspect); }
+        pasteX = Math.round(mw * 0.5 - targetW * 0.5);
+        pasteY = Math.round(mh * 0.205);
+      }
+      
+      const resizedGarment = await sharp(trimmed).resize(targetW, targetH, { fit: 'inside' }).png().toBuffer();
+      currentBase = await sharp(currentBase).composite([{ input: resizedGarment, top: pasteY, left: pasteX }]).png().toBuffer();
+    } catch (err) {
+      console.warn('Could not drape item:', item.id, err.message);
+    }
+  }
+  return currentBase;
+}
+
+export async function virtualTryOn(base, product, fullOutfit = null) {
+  if (process.env.AI_SERVICE_URL) {
+    const garment = await readFile(new URL('../../../../frontend/public'+product.garmentImage,import.meta.url));
+    const url = process.env.AI_SERVICE_URL.replace(/\/$/, '') + '/try-on';
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(90000),
+        body: JSON.stringify({
+          model_image: dataUri(base),
+          garment_image: dataUri(garment, 'png'),
+          category: product.category === 'dresses' ? 'one-pieces' : product.category,
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return imageData(data.image || data.output);
+      }
+    } catch (e) {
+      console.warn('AI Service Try-on unreachable, falling back to local compositing:', e.message);
+    }
+    return localGarmentTryOn(base, product, fullOutfit);
+  }
   const key = process.env.FASHN_API_KEY;
+  if (!key) return localGarmentTryOn(base, product, fullOutfit);
   const garment = await readFile(new URL('../../../../frontend/public'+product.garmentImage,import.meta.url));
   const v1 = 'https://api.fashn.ai/v1/';
   const {id} = await request(v1+'run',key,{model_name:'tryon-v1.6',inputs:{
-    model_image:dataUri(base),garment_image:dataUri(garment,'jpeg'),category:product.category==='dresses'?'one-pieces':product.category,
+    model_image:dataUri(base),garment_image:dataUri(garment,'png'),category:product.category==='dresses'?'one-pieces':product.category,
     garment_photo_type:'flat-lay',moderation_level:'conservative',return_base64:true,num_samples:1,
   }});
   if (!id) throw new Error('Missing FASHN job ID');
@@ -46,6 +126,31 @@ export async function virtualTryOn(base, product) {
   throw new Error('Try-on timeout');
 }
 export async function swapFace(base, face) {
+  if (process.env.AI_SERVICE_URL) {
+    const url = process.env.AI_SERVICE_URL.replace(/\/$/, '') + '/face-swap';
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(60000),
+        body: JSON.stringify({
+          base_image: dataUri(base),
+          face_image: dataUri(face),
+        })
+      });
+      if (!res.ok) {
+        if (res.status === 404) throw new Error(`Máy chủ AI (${process.env.AI_SERVICE_URL}) đang Offline. Hãy kiểm tra ô Bước 4 trên Google Colab.`);
+        throw new Error(`AI Microservice HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      return imageData(data.image || data.output);
+    } catch (e) {
+      if (e.message.includes('fetch failed') || e.message.includes('timeout') || e.message.includes('Offline')) {
+        throw new Error(`Không thể kết nối đến máy chủ AI (${process.env.AI_SERVICE_URL}). Hãy đảm bảo Google Colab đang chạy.`);
+      }
+      throw e;
+    }
+  }
   const key = process.env.REPLICATE_API_TOKEN, root = 'https://api.replicate.com/v1/predictions';
   const {id} = await request(root,key,{version:faceVersion,input:{input_image:dataUri(base),swap_image:dataUri(face)}});
   if (!id) throw new Error('Missing Face Swap job ID');
