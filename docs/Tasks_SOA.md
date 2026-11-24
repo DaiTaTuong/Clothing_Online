@@ -1,8 +1,9 @@
-# TÀI LIỆU THIẾT KẾ KIẾN TRÚC CƠ BẢN VÀ KẾ HOẠCH PHÂN CÔNG (SOA & AI)
+# TÀI LIỆU THIẾT KẾ KIẾN TRÚC VÀ KẾ HOẠCH PHÂN CÔNG API (SOA & AI)
 
 **Đề tài:** Hệ thống thương mại điện tử thời trang tích hợp AI Stylist và AI Phối đồ thực tế (Virtual Try-On 2 bước)  
-**Kiến trúc:** Service-Oriented Architecture (SOA) kết hợp AI Microservice tự huấn luyện (Self-hosted & Fine-tuned on Local GPU)  
-**Thời gian thực hiện:** 2 tuần (14 ngày lịch) | **Quy mô nhóm:** 5 thành viên
+**Kiến trúc:** Service-Oriented Architecture (SOA) kết hợp AI Microservice (`ai-service/app.py`)  
+**Chuẩn đặc tả API:** OpenAPI 3.0 định dạng JSON (`docs/api/*.json`)  
+**Quy mô phân công phần API:** 5 thành viên (chia đều 20% khối lượng / người)
 
 ---
 
@@ -25,16 +26,16 @@
 
 - **PHẦN 1. BẢN THIẾT KẾ KIẾN TRÚC NỀN TẢNG (BASELINE SYSTEM DESIGN)**
   - 1.1. Sơ đồ Kiến trúc Tổng thể (SOA System Blueprint)
-  - 1.2. Thiết kế Cơ bản: Giao diện Phòng phối đồ AI & Camera Guide (Nguyễn Phúc Thành)
-  - 1.3. Thiết kế Cơ bản: Backend Gateway, Database & Quản lý Phiên (Doãn Duy Lợi)
-  - 1.4. Thiết kế Cơ bản: AI Stylist & Thuật toán Phân tầng Layering (Hoàng Lâm Tùng)
-  - 1.5. Thiết kế Cơ bản: AI Vision Pipeline 2 Bước & Huấn luyện LoRA (An Đức Minh Trí)
-  - 1.6. Chuẩn hóa Hợp đồng API Dùng chung (REST API Specifications)
-- **PHẦN 2. KẾ HOẠCH PHÂN CÔNG VÀ DANH MỤC CÔNG VIỆC (TASK BREAKDOWN)**
-  - 2.1. Phân định vai trò và phạm vi mã nguồn
-  - 2.2. Chi tiết 30 đầu việc chuyên môn (T01 – T30)
-  - 2.3. Đầu việc chung (G01 – G04) và Quỹ dự phòng (R01)
-  - 2.4. Tổng hợp ngân sách thời gian (Cân bằng 48h / người)
+  - 1.2. Thiết kế Cơ bản: Giao diện Phòng phối đồ AI & Camera Guide
+  - 1.3. Thiết kế Cơ bản: Backend Gateway, Database & Quản lý Phiên
+  - 1.4. Thiết kế Cơ bản: AI Stylist & Thuật toán Phân tầng Layering
+  - 1.5. Thiết kế Cơ bản: AI Vision Pipeline 2 Bước & Huấn luyện LoRA
+  - 1.6. Chuẩn hóa Hợp đồng API Dùng chung (OpenAPI 3.0 JSON Specifications)
+- **PHẦN 2. KẾ HOẠCH PHÂN CÔNG NHIỆM VỤ API CHO 5 THÀNH VIÊN**
+  - 2.1. Cấu trúc thư mục đặc tả JSON (`docs/api/`) và Phân định sở hữu
+  - 2.2. Chi tiết đầu việc API từng thành viên (Lợi, Tường, Tùng, Thành, Trí)
+  - 2.3. Quy chuẩn chung (API Governance) và Đầu việc nhóm
+  - 2.4. Tổng hợp phân bổ khối lượng (Cân bằng 20% / thành viên)
 - **PHẦN 3. TIẾN ĐỘ, KIỂM THỬ VÀ NGHIỆM THU HỌC THUẬT**
   - 3.1. Lộ trình 14 ngày và Ma trận bàn giao
   - 3.2. 10 Kịch bản kiểm thử tích hợp End-to-End (K01 – K10)
@@ -286,116 +287,138 @@ Thành viên **An Đức Minh Trí** tự tay thiết kế cấu trúc AI Micros
 
 ---
 
-### 1.6. Chuẩn hóa Hợp đồng API Dùng chung (REST API Specifications)
+### 1.6. Chuẩn hóa Hợp đồng API Dùng chung (OpenAPI 3.0 JSON Specifications)
+
+Toàn bộ API của hệ thống được đặc tả bằng chuẩn **OpenAPI 3.0 định dạng JSON** tại thư mục `docs/api/` (dùng `$ref` tham chiếu schema dùng chung từ `docs/api/common-schemas.json`):
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────────────────┐
-│                             DANH MỤC API DÙNG CHUNG CỦA HỆ THỐNG                     │
-├──────────────────────────────────────────────────────────────────────────────────────┤
-│ 1. API CỬA HÀNG & PHIÊN (Do Doãn Duy Lợi phụ trách)                                  │
-│    GET  /api/session                 -> Lấy thông tin phiên khách / user             │
-│    GET  /api/products                -> Lấy danh sách 24 sản phẩm (có lọc theo slot) │
-│    POST /api/cart/items              -> Thêm sản phẩm hoặc nguyên set phối vào giỏ   │
-│                                                                                      │
-│ 2. API STYLIST & LOGIC TRANG PHỤC (Do Hoàng Lâm Tùng phụ trách)                      │
-│    POST /api/stylist/chat            -> Nhận tin nhắn, trả lời tư vấn & thẻ sản phẩm │
-│    POST /api/stylist/validate-outfit -> Nhận mảng sản phẩm, trả mảng đã xếp layer    │
-│                                                                                      │
-│ 3. API AI VISION TRY-ON (Do An Đức Minh Trí phụ trách - Chạy trên PC Trí)            │
-│    POST /api/ai/validate-and-matting -> Bước 1: Validate dáng + Tách nền trắng #FFF  │
-│    POST /api/ai/try-on               -> Bước 2: Ghép đồ bằng LoRA đã train           │
-│                                                                                      │
-│ 4. API ĐIỀU PHỐI TÁC VỤ THỬ ĐỒ (Do Doãn Duy Lợi kết nối Frontend <-> AI Trí)         │
-│    POST /api/fitting/create-job      -> Nhận ảnh, kiểm tra cache, gọi AI Trí         │
-│    GET  /api/fitting/jobs/:id        -> Polling trạng thái tiến trình 2 bước         │
-└──────────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│                  DANH MỤC API DÙNG CHUNG & PHÂN CHIA 5 FILE JSON SPEC                    │
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ 0. SCHEMA DÙNG CHUNG (docs/api/common-schemas.json - Cả nhóm thống nhất)                 │
+│    ErrorResponse { error: { code, message, requestId } }, HealthResponse, PaginationMeta │
+│                                                                                          │
+│ 1. IDENTITY, SESSION & PROFILE (docs/api/01-identity-profile.json - Doãn Duy Lợi)        │
+│    GET  /api/health                  -> Kiểm tra trạng thái sống của Backend Gateway     │
+│    GET  /api/session                 -> Lấy thông tin phiên khách / user & state hiện tại│
+│    POST /api/auth/register           -> Đăng ký tài khoản + merge guest session          │
+│    POST /api/auth/login              -> Đăng nhập + merge guest session                  │
+│    POST /api/auth/logout             -> Đăng xuất & cấp phiên khách mới                  │
+│    GET  /api/profile                 -> Lấy hồ sơ vóc dáng & profileVersion              │
+│    PUT  /api/profile                 -> Cập nhật số đo, tông da, phong cách, dáng mặt    │
+│    GET  /api/admin/overview          -> Thống kê tổng quan (chỉ admin demo)              │
+│                                                                                          │
+│ 2. CATALOG, SEARCH & CART (docs/api/02-catalog-cart.json - Nguyễn Xuân Tường)            │
+│    GET  /api/products                -> Danh sách sản phẩm phân trang & lọc              │
+│    GET  /api/products/:id            -> Chi tiết 1 sản phẩm                              │
+│    GET  /api/recommendations         -> Gợi ý sản phẩm xếp hạng theo hồ sơ               │
+│    POST /api/search                  -> Tìm kiếm & xếp hạng nâng cao theo bộ lọc         │
+│    GET  /api/cart                    -> Lấy thông tin giỏ hàng & tổng tiền               │
+│    POST/PATCH/DELETE /api/cart/items -> Thêm, sửa số lượng, xóa sản phẩm trong giỏ       │
+│                                                                                          │
+│ 3. AI STYLIST & CONVERSATION (docs/api/03-stylist-chat.json - Hoàng Lâm Tùng)            │
+│    GET  /api/conversations/:id       -> Lấy lịch sử hội thoại theo session               │
+│    POST /api/chat                    -> Gửi câu hỏi Stylist, nhận tư vấn & product cards │
+│    POST /api/stylist/validate-outfit -> (Mở rộng SOA) Kiểm tra xung đột slot & xếp layer│
+│                                                                                          │
+│ 4. MEDIA & ASYNC TRY-ON JOBS (docs/api/04-media-tryon-jobs.json - Nguyễn Phúc Thành)     │
+│    POST /api/media                   -> Tải ảnh người dùng lên (tối đa 7MB)              │
+│    GET/DELETE /api/media/:id         -> Đọc ảnh PNG (no-store) hoặc xóa ảnh theo owner   │
+│    POST /api/avatars, /api/try-ons   -> Tạo tác vụ bất đồng bộ (202 Accepted)            │
+│    GET  /api/jobs/:id                -> Polling trạng thái & tiến trình tác vụ           │
+│    GET  /api/try-ons                 -> Lịch sử các lượt thử đồ của owner                │
+│    PATCH /api/try-ons/:id            -> Lưu lượt thử đồ vào tài khoản                    │
+│                                                                                          │
+│ 5. AI VISION MICROSERVICE & GATEWAY (docs/api/05-ai-vision.json - An Đức Minh Trí)      │
+│    GET  /health, /api/health         -> Kiểm tra trạng thái AI Microservice (FastAPI)    │
+│    POST /api/ai/validate-and-matting -> Bước 1: Kiểm tra toàn thân & tách nền #FFFFFF    │
+│    POST /api/ai/try-on               -> Bước 2: Phối đồ nhiều lớp (AI Service / 2D)      │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-# PHẦN 2. KẾ HOẠCH PHÂN CÔNG VÀ DANH MỤC CÔNG VIỆC (TASK BREAKDOWN)
+# PHẦN 2. KẾ HOẠCH PHÂN CÔNG NHIỆM VỤ API CHO 5 THÀNH VIÊN
 
-Mỗi thành viên đảm nhiệm đúng **40 giờ chuyên môn + 4 giờ việc chung + 4 giờ dự phòng = 48 giờ** (Tổng 240 giờ toàn dự án, chia đều 20% mỗi người).
+Phần API được chia đều cho **5 thành viên (20% khối lượng / người)** theo mô hình **Contract-First (đặc tả OpenAPI 3.0 bằng JSON trước → chuẩn hóa code & validation → viết test tự động)**. Mỗi thành viên chịu trách nhiệm trọn vẹn từ file đặc tả `.json`, logic xử lý, mã lỗi HTTP đến kiểm thử trong `tests/tests.mjs`.
 
-### 2.1. Phân định vai trò và quyền sở hữu mã nguồn
+### 2.1. Cấu trúc thư mục đặc tả JSON (`docs/api/`) và Phân định sở hữu
 
-| Thành viên | Phân hệ đảm nhiệm | Thư mục sở hữu mã nguồn | Trách nhiệm chính |
+| Thành viên | Service / Bounded Context | File đặc tả JSON | Mã nguồn chịu trách nhiệm |
 | :--- | :--- | :--- | :--- |
-| **Nguyễn Xuân Tường** | Frontend: Duy trì Shop UI & Đấu nối Chatbot | `frontend/src/features/shop/`, `features/chat/`, `components/ui/` | **Giữ nguyên giao diện Cửa hàng có sẵn**; kết nối API sản phẩm thật; tích hợp widget Chatbot; điều hướng sang phòng thử |
-| **Nguyễn Phúc Thành** | Frontend: Phòng phối đồ AI & Camera Guide | `frontend/src/features/fitting-room/` | **Tự tay thiết kế mới từ đầu**: Layout 3 cột phòng thử; Camera guide; quản lý slot và lớp đồ; thanh trượt Before/After |
-| **Doãn Duy Lợi** | Backend: Gateway, Session, DB & Bảo mật | `backend/src/platform/`, `modules/catalog/`, `modules/cart/` | **Tự tay thiết kế mới từ đầu**: DB schema, quản lý phiên; Cron job dọn ảnh 24h; Reverse proxy kết nối tới PC của Trí; Caching |
-| **Hoàng Lâm Tùng** | AI Stylist, Phân tầng Layering & Dataset | `backend/src/modules/stylist/`, `data/` | **Tự tay thiết kế mới từ đầu**: Chuẩn hóa 24 sản phẩm cho Trí train LoRA; Chatbot LLM Stylist; thuật toán xếp layer và giải quyết xung đột slot |
-| **An Đức Minh Trí** | AI Microservice: Train LoRA & Pipeline 2 bước | `ai-service/`, `scripts/train/` | **Tự tay thiết kế mới từ đầu**: Môi trường GPU PC; script train LoRA; API Bước 1 (YOLO + BiRefNet); API Bước 2 (Try-On LoRA); đo chỉ số SSIM |
+| **Doãn Duy Lợi** | **Identity, Session & Profile API** | `docs/api/01-identity-profile.json`<br>`docs/api/common-schemas.json` | `backend/src/server.mjs` (Auth, Session, Profile, Admin), `backend/src/platform/store.mjs`, `shared/contracts/index.mjs` |
+| **Nguyễn Xuân Tường** | **Catalog, Search & Cart API** | `docs/api/02-catalog-cart.json` | `backend/src/server.mjs` (Products, Search, Recommendations, Cart), `data/catalog.mjs`, `backend/src/modules/stylist/rules.mjs` |
+| **Hoàng Lâm Tùng** | **AI Stylist & Conversation API** | `docs/api/03-stylist-chat.json` | `backend/src/server.mjs` (Conversations, Chat), `backend/src/modules/stylist/llm.mjs`, `backend/src/modules/stylist/rules.mjs` |
+| **Nguyễn Phúc Thành** | **Media & Async Try-On Jobs API** | `docs/api/04-media-tryon-jobs.json` | `backend/src/server.mjs` (Media, Avatars, Try-Ons, Jobs), `backend/src/modules/tryon/jobs.mjs` |
+| **An Đức Minh Trí** | **AI Vision Microservice & Gateway API** | `docs/api/05-ai-vision.json` | `backend/src/server.mjs` (`/api/ai/*` Gateway), `backend/src/modules/tryon/providers.mjs`, `ai-service/app.py` |
 
 ---
 
-### 2.2. Chi tiết 30 đầu việc chuyên môn (T01 – T30)
+### 2.2. Chi tiết đầu việc API từng thành viên
 
-#### 1. Nguyễn Xuân Tường — Frontend Cửa hàng & Chatbot UI
-* **T01 (6h - N1-N2)**: Rà soát và chuẩn hóa bộ Design Tokens, Component dùng chung từ UI shop sẵn có để hỗ trợ bạn Thành ghép nối phòng thử.
-* **T02 (10h - N3-N5)**: Duy trì UI Shop hiện tại, thay thế dữ liệu mock bằng API danh mục 24 sản phẩm thật từ Backend Lợi; bổ sung nút *"Thử đồ"* trên từng thẻ sản phẩm.
-* **T03 (8h - N6-N8)**: Tích hợp Widget Chatbot AI Stylist vào góc phải giao diện bán hàng; hiển thị thẻ sản phẩm mini do bot gợi ý kèm nút *"Phối cả set này"*.
-* **T04 (8h - N8-N10)**: Hoàn thiện tính năng Giỏ hàng hỗ trợ lưu nguyên set đồ đã phối từ phòng thử; quản lý đăng nhập/đăng xuất theo phiên.
-* **T05 (4h - N11-N12)**: Kiểm thử responsive và luồng mua sắm tổng thể; sửa lỗi giao diện và chặn lỗi người dùng.
-* **T06 (4h - N13)**: Viết tài liệu UX Cửa hàng, chụp ảnh giao diện và chuẩn bị 2-3 slide thuyết trình.
+#### 1. Doãn Duy Lợi — Identity, Session & Profile API (`01-identity-profile.json`)
+* **A1.1 — Thiết kế Schema dùng chung & Auth/Session JSON Spec:** Khởi tạo `docs/api/common-schemas.json` (`ErrorResponse`, `HealthResponse`, `PaginationMeta`) và viết `docs/api/01-identity-profile.json` cho `/api/health`, `/api/session`, `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`.
+* **A1.2 — Chuẩn hóa Bảo mật & Merge Session:** Rà soát và chuẩn hóa cookie `HttpOnly`, kiểm tra `Origin` chống CSRF (`403 ORIGIN`), rate-limit auth (`429`), và logic `mergeSession` gộp dữ liệu phiên khách vào tài khoản đăng nhập.
+* **A1.3 — Chuẩn hóa Profile & RBAC Admin API:** Đặc tả JSON Schema cho `GET/PUT /api/profile` (validate `height`, `weight`, `bust`, `waist`, `hip`, `tone` 0–5, `style`, `faceShape`, cập nhật `profileVersion`) và `GET /api/admin/overview` (`403 FORBIDDEN` nếu không phải admin).
+* **A1.4 — Kiểm thử tự động:** Viết test case cho luồng đăng ký (`201`), đăng nhập (`200`), sai mật khẩu (`401`), trùng email (`409`), validate profile (`422`) và phân quyền admin (`403`) trong `tests/tests.mjs`.
 
-#### 2. Nguyễn Phúc Thành — Frontend Phòng phối đồ AI & Camera Guide (Tự tay thiết kế)
-* **T07 (6h - N1-N2)**: Tự tay thiết kế và dựng khung Layout 3 cột của Phòng phối đồ AI (Cột 1: Tủ đồ/Slot, Cột 2: Khung hình, Cột 3: Bảng điều khiển).
-* **T08 (10h - N3-N5)**: Thiết kế module Camera Guide: Vẽ khung hình người mờ (Silhouette Overlay) trên video/canvas để người dùng căn toàn thân; kiểm tra độ phân giải ảnh client-side.
-* **T09 (8h - N6-N8)**: Xây dựng bộ quản lý Slot trang phục (Top, Bottom, Outer, Shoes); lập trình tính năng tự động ghi đè món khi chọn trùng vị trí; nhận danh sách món từ Chatbot sang.
-* **T10 (8h - N8-N10)**: Thiết kế thanh trạng thái hiển thị tiến trình 2 bước AI; lập trình thanh trượt so sánh Before/After; hiển thị thông báo lỗi tiếng Việt nếu ảnh Bước 1 bị từ chối.
-* **T11 (4h - N11-N12)**: Kiểm thử toàn diện phòng phối đồ với nhiều độ phân giải màn hình; tối ưu tốc độ render ảnh lớn.
-* **T12 (4h - N13)**: Viết tài liệu thiết kế UX phòng thử đồ, vẽ sơ đồ máy trạng thái và chuẩn bị slide/video demo.
+#### 2. Nguyễn Xuân Tường — Catalog, Search & Cart API (`02-catalog-cart.json`)
+* **A2.1 — Đặc tả JSON Schema Catalog & Cart:** Viết `docs/api/02-catalog-cart.json` cho `/api/products`, `/api/products/:id`, `/api/recommendations`, `/api/search`, `/api/cart`, `/api/cart/items` (`POST`, `PATCH`, `DELETE`).
+* **A2.2 — Chuẩn hóa Phân trang & Bộ lọc tìm kiếm:** Thống nhất query params (`page`, `limit` 1–24, `category`, `occasion`, `tone`, `maxPrice`) và cấu trúc trả về `{ items, total, page }`; xử lý `404 NOT_FOUND` khi sản phẩm không tồn tại; đồng bộ bộ lọc giữa `GET /api/recommendations` và `POST /api/search`.
+* **A2.3 — Chuẩn hóa Giỏ hàng & Kiểm tra tồn kho:** Đảm bảo kiểm tra `item.stock[size]` trước khi thêm/cập nhật (`422 INVALID_CART` nếu hết hàng hoặc sai size) và tính nhất quán tổng số lượng, tạm tính ở `GET /api/cart`.
+* **A2.4 — Kiểm thử tự động:** Viết test case phân trang, lọc sản phẩm, chi tiết sản phẩm `404`, thêm/sửa/xóa giỏ hàng và case vượt tồn kho trong `tests/tests.mjs`.
 
-#### 3. Doãn Duy Lợi — Backend Gateway, Session, DB & Bảo mật (Tự tay thiết kế)
-* **T13 (6h - N1-N2)**: Khởi tạo cấu trúc dự án Backend Express/Fastify; thiết kế và chạy Migration lược đồ CSDL (Users, Sessions, Products, TryOnJobs, Cart).
-* **T14 (10h - N3-N5)**: Xây dựng cơ chế Quản lý phiên khách (Cookie HttpOnly) và **Bộ dọn dẹp ảnh tạm sau 24 giờ (TTL 24h Cron Job)** đảm bảo quyền riêng tư.
-* **T15 (8h - N6-N8)**: Viết API CRUD danh mục sản phẩm và giỏ hàng; hỗ trợ lưu trữ thông tin cả bộ đồ được phối chung một nhóm.
-* **T16 (8h - N8-N10)**: Thiết kế Reverse Proxy và Asynchronous Task Dispatcher kết nối tới PC của Trí (qua LAN/Tunnel); lập trình bộ nhớ đệm (Cache) theo mã hash ảnh.
-* **T17 (4h - N11-N12)**: Kiểm thử hiệu năng Backend, kiểm tra việc tự động xóa ảnh sau 24h và tính an toàn của phiên khách.
-* **T18 (4h - N13)**: Viết tài liệu kiến trúc Backend SOA, vẽ sơ đồ ERD, cung cấp file `.env.example` và chuẩn bị slide báo cáo.
+#### 3. Hoàng Lâm Tùng — AI Stylist & Conversation API (`03-stylist-chat.json`)
+* **A3.1 — Đặc tả JSON Schema Stylist & Hội thoại:** Viết `docs/api/03-stylist-chat.json` cho `GET /api/conversations/:id`, `POST /api/chat` (ràng buộc `message` 1–500 ký tự, `page`: `shop | fitting`, cấu trúc `cards` gồm `productId`, `recommendedSize`) và endpoint mở rộng `POST /api/stylist/validate-outfit`.
+* **A3.2 — Chuẩn hóa Concurrency & Session Safety:** Đảm bảo cơ chế khóa `chatBusy` (`409 CHAT_BUSY`), rate-limit (`20 req/phút`), kiểm tra `SESSION_CHANGED` (`409`) nếu phiên thay đổi khi LLM đang xử lý, và giới hạn lịch sử 40 tin nhắn.
+* **A3.3 — Chuẩn hóa Fallback LLM & Layering:** Đảm bảo `llm.mjs` fallback mượt mà về `rules.mjs` khi thiếu/lỗi `OPENAI_API_KEY`; mọi `productId` trong `cards` đều tồn tại trong catalog; hoàn thiện logic kiểm tra trùng slot & xếp `layer_level`.
+* **A3.4 — Kiểm thử tự động:** Viết test case gửi câu hỏi hợp lệ, tin nhắn rỗng/quá dài (`422`), gọi song song (`409 CHAT_BUSY`), đọc hội thoại sai ID (`404`) trong `tests/tests.mjs`.
 
-#### 4. Hoàng Lâm Tùng — AI Stylist, Phân tầng Layering & Dataset Shop (Tự tay thiết kế)
-* **T19 (6h - N1-N2)**: Thu thập và chuẩn hóa bộ Dataset 24 sản phẩm của shop (ảnh phẳng, ảnh mẫu, mask, dense caption) bàn giao cho bạn Trí train LoRA.
-* **T20 (10h - N3-N5)**: Thiết kế ma trận phối màu thời trang và thuật toán gợi ý set đồ theo phong cách/dịp mặc.
-* **T21 (8h - N6-N8)**: Tích hợp LLM và thiết kế System Prompt chuyên gia thời trang; xây dựng API Chatbot Stylist trả về thẻ sản phẩm thật có trong kho.
-* **T22 (8h - N8-N10)**: Lập trình thuật toán kiểm tra xung đột slot và sắp xếp danh sách trang phục theo thứ tự phân tầng layer trước khi gửi sang AI thử đồ.
-* **T23 (4h - N11-N12)**: Kiểm thử 20 kịch bản tư vấn phong cách; đo lường độ chính xác của chatbot và khắc phục lỗi hallucination.
-* **T24 (4h - N13)**: Viết tài liệu thuật toán thời trang, prompt engineering, bảng ma trận phối màu và chuẩn bị slide báo cáo.
+#### 4. Nguyễn Phúc Thành — Media & Async Try-On Jobs API (`04-media-tryon-jobs.json`)
+* **A4.1 — Đặc tả JSON Schema Media & Async Jobs:** Viết `docs/api/04-media-tryon-jobs.json` cho `POST /api/media`, `GET/DELETE /api/media/:id`, `POST /api/avatars`, `POST /api/try-ons`, `GET /api/jobs/:id`, `GET /api/try-ons`, `PATCH /api/try-ons/:id`.
+* **A4.2 — Chuẩn hóa Media & Kiểm soát quyền sở hữu:** Đảm bảo giới hạn dung lượng upload (`7MB`), kiểm tra quyền sở hữu `owner` khi đọc/xóa media (`404 NOT_FOUND`), trả header `Content-Type: image/png` và `Cache-Control: private, no-store`.
+* **A4.3 — Chuẩn hóa Luồng Bất đồng bộ (202 Accepted + Polling):** Thống nhất schema trạng thái job (`queued`, `processing`, `completed`, `failed`), TTL dọn media/job hết hạn trong `jobs.mjs`, và lưu lượt thử đồ vào tài khoản qua `PATCH /api/try-ons/:id`.
+* **A4.4 — Kiểm thử tự động:** Viết test case upload/đọc/xóa media, tạo job async (`202`) + polling `/api/jobs/:id`, lấy lịch sử và lưu try-on trong `tests/tests.mjs`.
 
-#### 5. An Đức Minh Trí — AI Microservice: Train LoRA & Pipeline 2 bước (Tự tay thiết kế)
-* **T25 (6h - N1-N2)**: Thiết lập môi trường CUDA/PyTorch trên GPU PC; cấu hình script huấn luyện `train_lora.py`; kiểm tra chạy thử nghiệm không lỗi OOM.
-* **T26 (10h - N3-N5)**: Xây dựng endpoint **Bước 1**: Kiểm tra toàn thân bằng YOLOv8-pose (đủ đầu, chân, 1 người, đủ sáng/nét) + Tách nền trắng `#FFFFFF` bằng BiRefNet; trả thông báo lỗi tiếng Việt nếu ảnh chụp sai.
-* **T27 (8h - N6-N8)**: Thực hiện **huấn luyện mô hình LoRA** trên 24 sản phẩm của shop trong 50–80 epochs; ghi log hàm mất mát (Loss) và xuất tệp `fashion_lora.safetensors`.
-* **T28 (8h - N8-N10)**: Xây dựng endpoint **Bước 2**: Nạp Base Model gắn LoRA weights; uốn nếp vải theo pose; phối nhiều món theo layer; xử lý pose che khuất và chống dị tật ngón tay.
-* **T29 (4h - N11-N12)**: Trích xuất biểu đồ Loss Curve theo Epochs; đo đạc định lượng chỉ số SSIM/CLIP-Score; chạy benchmark trên 20+ bộ ảnh người thật.
-* **T30 (4h - N13)**: Viết báo cáo kỹ thuật AI chuyên sâu, chuẩn bị slide thuyết trình và quay video demo chạy trực tiếp từ PC.
+#### 5. An Đức Minh Trí — AI Vision Microservice & Gateway API (`05-ai-vision.json`)
+* **A5.1 — Đặc tả JSON Schema AI Vision 2 Bước:** Viết `docs/api/05-ai-vision.json` cho `GET /health`, `GET /api/health` (FastAPI), `POST /api/ai/validate-and-matting` (Bước 1) và `POST /api/ai/try-on` (Bước 2).
+* **A5.2 — Chuẩn hóa Hợp đồng Gateway ↔ FastAPI (`ai-service/app.py`):** Thống nhất payload giữa Node Gateway và `AI_SERVICE_URL` (`image` base64 ở bước 1; `person_image` + `garments` theo `layer_level` ở bước 2), cấu hình timeout (`25s` bước 1, `35s` bước 2).
+* **A5.3 — Chuẩn hóa Xử lý Lỗi & Fallback:** Trả mã lỗi tiếng Việt chuẩn (`400 INVALID_IMAGE`, `400 AI_VALIDATION_ERROR`, `400 INVALID_TRYON`, `500 TRYON_ERROR`), đồng bộ logic fallback `sharp` 2D khi `AI_SERVICE_URL` tắt để hệ thống luôn hoạt động ổn định.
+* **A5.4 — Kiểm thử tự động:** Viết test case validate ảnh thiếu chân/chụp ngang (`400`), thử đồ thiếu dữ liệu (`400`), và phối đồ nhiều lớp fallback thành công (`200`) trong `tests/tests.mjs`.
 
 ---
 
-### 2.3. Đầu việc chung (G01 – G04) và Quỹ dự phòng (R01)
+### 2.3. Quy chuẩn chung (API Governance) và Đầu việc nhóm
 
-| Mã | Hạng mục | Nội dung và trách nhiệm | Giờ/người | Tổng giờ nhóm | Thời gian |
-| :--- | :--- | :--- | :---: | :---: | :--- |
-| **G01** | Họp chốt thiết kế cơ bản & Chuẩn API | Cả 5 thành viên thống nhất kiến trúc, schema database, tunnel kết nối PC Trí và bộ dataset 24 món | 1 | 5 | N1–N2 |
-| **G02** | Ghép luồng tích hợp hệ thống đầu tiên | Cả nhóm chạy luồng xuyên suốt: Web → Gateway → AI PC Trí (Bước 1 → Bước 2 LoRA) → Web | 1 | 5 | N7 |
-| **G03** | Review chéo và Chốt phiên bản đóng băng | Đánh giá chéo chất lượng giữa các phân hệ; Lợi tổng hợp bug tracker và chốt bản Release Candidate | 1 | 5 | N11–N12 |
-| **G04** | Ghép tài liệu tổng hợp và Tổng duyệt Demo | Ghép báo cáo lớn, kiểm tra slide chung, phân vai kịch bản thuyết trình và chạy thử demo trực tiếp | 1 | 5 | N14 |
-| **R01** | Quỹ thời gian dự phòng cá nhân | Dành cho sự cố mạng tunnel, tinh chỉnh siêu tham số LoRA hoặc sửa lỗi phát sinh sau review | 4 | 20 | N1–N14 |
-| | **Tổng công việc chung + Dự phòng** | | **8** | **40** | |
+1. **Contract-First với JSON:** Mọi endpoint đều phải có mặt trong `docs/api/*.json` với đầy đủ `requestBody`, `parameters`, `responses` (cả `2xx` và `4xx/5xx`) và `example`.
+2. **Định dạng lỗi thống nhất:** Mọi lỗi trả về theo schema chung trong `docs/api/common-schemas.json`:
+   ```json
+   {
+     "error": {
+       "code": "INVALID_PROFILE",
+       "message": "Chiều cao phải nằm trong khoảng 145–190.",
+       "requestId": "uuid"
+     }
+   }
+   ```
+3. **Quy ước mã HTTP chuẩn:** `200` (OK), `201` (Created), `202` (Accepted - Async Job), `400` (Bad Request / AI Validation), `401` (Unauthorized), `403` (Forbidden / Origin), `404` (Not Found), `409` (Conflict), `422` (Validation Error), `429` (Rate Limit), `500` (Internal Error).
+4. **Đầu việc chung của cả 5 thành viên:**
+   * **G01:** Thống nhất `docs/api/common-schemas.json` và quy tắc đặt tên field/error code.
+   * **G02:** Import 5 file JSON vào Postman / Swagger Editor để review chéo hợp đồng API.
+   * **G03:** Chạy `npm.cmd test` kiểm tra toàn bộ test suite trước khi đóng băng phiên bản.
 
 ---
 
-### 2.4. Tổng hợp ngân sách thời gian (Cân bằng 48h / người)
+### 2.4. Tổng hợp phân bổ khối lượng (Cân bằng 20% / thành viên)
 
-| Thành viên | Phân hệ đảm nhiệm | Xây dựng / Train | Kiểm thử / Fix | Báo cáo / Slide | Việc chung | Kế hoạch | Dự phòng | Tổng cộng | Tỷ trọng |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Nguyễn Xuân Tường** | Frontend Shop UI & Chat Widget | 32 | 4 | 4 | 4 | **44** | 4 | **48 giờ** | **20%** |
-| **Nguyễn Phúc Thành** | Frontend Phòng phối đồ & Camera | 32 | 4 | 4 | 4 | **44** | 4 | **48 giờ** | **20%** |
-| **Doãn Duy Lợi** | Backend Gateway, Session & Data | 32 | 4 | 4 | 4 | **44** | 4 | **48 giờ** | **20%** |
-| **Hoàng Lâm Tùng** | AI Stylist, Layering & Dataset | 32 | 4 | 4 | 4 | **44** | 4 | **48 giờ** | **20%** |
-| **An Đức Minh Trí** | AI Microservice, Train LoRA & Try-On | 32 | 4 | 4 | 4 | **44** | 4 | **48 giờ** | **20%** |
-| **TỔNG TOÀN DỰ ÁN** | **Toàn bộ hệ thống SOA & AI** | **160** | **20** | **20** | **20** | **220** | **20** | **240 giờ** | **100%** |
+| Thành viên | Phân hệ API phụ trách | File đặc tả JSON | Đầu việc chính | Tỷ trọng |
+| :--- | :--- | :--- | :--- | :---: |
+| **Doãn Duy Lợi** | Identity, Session & Profile (8 endpoints) | `01-identity-profile.json` + `common-schemas.json` | Schema chung + Auth/Session/Profile/RBAC + Test | **20%** |
+| **Nguyễn Xuân Tường** | Catalog, Search & Cart (8 endpoints) | `02-catalog-cart.json` | Pagination/Filter/Search/Stock Validation + Test | **20%** |
+| **Hoàng Lâm Tùng** | AI Stylist & Conversation (3 endpoints + Layering) | `03-stylist-chat.json` | Concurrency/LLM Fallback/Layering + Test | **20%** |
+| **Nguyễn Phúc Thành** | Media & Async Try-On Jobs (8 endpoints) | `04-media-tryon-jobs.json` | Media Owner/TTL/Async 202 + Polling + Test | **20%** |
+| **An Đức Minh Trí** | AI Vision Microservice & Gateway (4 endpoints) | `05-ai-vision.json` | Gateway ↔ `app.py` Contract/Fallback/Error + Test | **20%** |
+| **TỔNG** | **Toàn bộ tầng API SOA** | **5 file OpenAPI JSON + Schema chung** | **Backend/AI Implementation + Test Suite** | **100%** |
 
 ---
 
