@@ -42,7 +42,7 @@ python app.py
 * AI Server lắng nghe tại `http://127.0.0.1:5001`.
 * Nếu muốn chia sẻ cho cả nhóm dùng khi kết nối API Gateway:
   ```bash
-  # Mở tunnel bằng cloudflare (hoặc ngrok)
+  # Mở tunnel bằng cloudflare
   cloudflared tunnel --url http://localhost:5001
   ```
 * Lấy URL dạng `https://xxxx.trycloudflare.com` dán vào file `.env` ở thư mục gốc:
