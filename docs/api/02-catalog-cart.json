@@ -1,0 +1,209 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "02 - Catalog, Search & Cart API",
+    "version": "2.0.0",
+    "description": "Phụ trách: Nguyễn Xuân Tường — Danh mục 24 sản phẩm, phân trang, tìm kiếm/gợi ý cá nhân hóa theo vóc dáng và quản lý giỏ hàng kiểm tra tồn kho."
+  },
+  "tags": [
+    { "name": "Catalog & Search", "description": "Danh mục sản phẩm, chi tiết, gợi ý và tìm kiếm" },
+    { "name": "Cart", "description": "Giỏ hàng và kiểm tra tồn kho theo size" }
+  ],
+  "paths": {
+    "/api/products": {
+      "get": {
+        "tags": ["Catalog & Search"],
+        "summary": "Lấy danh sách sản phẩm có lọc và phân trang",
+        "parameters": [
+          { "name": "q", "in": "query", "schema": { "type": "string" }, "description": "Từ khóa tìm kiếm tiếng Việt" },
+          { "name": "category", "in": "query", "schema": { "type": "string", "enum": ["tops", "bottoms", "dresses"] } },
+          { "name": "occasion", "in": "query", "schema": { "type": "string", "enum": ["office", "casual", "formal"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 24, "default": 24 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách sản phẩm phân trang",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/Product" } },
+                    "total": { "type": "integer" },
+                    "page": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/{id}": {
+      "get": {
+        "tags": ["Catalog & Search"],
+        "summary": "Lấy chi tiết một sản phẩm theo ID",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "example": "linen-shirt" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chi tiết sản phẩm",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "product": { "$ref": "#/components/schemas/Product" } }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Không tìm thấy sản phẩm (NOT_FOUND)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/recommendations": {
+      "get": {
+        "tags": ["Catalog & Search"],
+        "summary": "Gợi ý sản phẩm xếp hạng theo hồ sơ vóc dáng và bộ lọc query",
+        "parameters": [
+          { "name": "q", "in": "query", "schema": { "type": "string" } },
+          { "name": "category", "in": "query", "schema": { "type": "string" } },
+          { "name": "occasion", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách gợi ý kèm điểm xếp hạng và lý do",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "post": {
+        "tags": ["Catalog & Search"],
+        "summary": "Tìm kiếm và xếp hạng sản phẩm nâng cao bằng JSON body",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "q": { "type": "string", "example": "áo sơ mi đi làm cho da ngăm dưới 500k" },
+                  "category": { "type": "string" },
+                  "occasion": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Kết quả xếp hạng",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    },
+    "/api/cart": {
+      "get": {
+        "tags": ["Cart"],
+        "summary": "Lấy giỏ hàng hiện tại của phiên",
+        "responses": {
+          "200": {
+            "description": "Thông tin giỏ hàng và tổng tiền",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CartResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/cart/items": {
+      "post": {
+        "tags": ["Cart"],
+        "summary": "Thêm sản phẩm vào giỏ hàng (cộng dồn nếu trùng size)",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CartItemInput" } } }
+        },
+        "responses": {
+          "200": { "description": "Giỏ hàng sau khi thêm", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CartResponse" } } } },
+          "422": { "description": "Sai size hoặc vượt tồn kho (INVALID_CART)", "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "patch": {
+        "tags": ["Cart"],
+        "summary": "Cập nhật số lượng cụ thể của một dòng trong giỏ",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CartItemInput" } } }
+        },
+        "responses": {
+          "200": { "description": "Giỏ hàng sau khi cập nhật", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CartResponse" } } } },
+          "422": { "description": "Vượt tồn kho hoặc số lượng không hợp lệ (INVALID_CART)", "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Cart"],
+        "summary": "Xóa một sản phẩm theo size khỏi giỏ hàng",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["productId", "size"],
+                "properties": {
+                  "productId": { "type": "string", "example": "linen-shirt" },
+                  "size": { "type": "string", "example": "M" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Giỏ hàng sau khi xóa", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CartResponse" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "linen-shirt" },
+          "name": { "type": "string", "example": "Áo sơ mi linen kem" },
+          "category": { "type": "string", "enum": ["tops", "bottoms", "dresses"] },
+          "cut": { "type": "string", "example": "shirt" },
+          "color": { "type": "string", "example": "Kem" },
+          "price": { "type": "integer", "example": 489000 },
+          "stock": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "image": { "type": "string" },
+          "garmentImage": { "type": "string" }
+        }
+      },
+      "CartItemInput": {
+        "type": "object",
+        "required": ["productId", "size"],
+        "properties": {
+          "productId": { "type": "string", "example": "linen-shirt" },
+          "size": { "type": "string", "enum": ["XS", "S", "M", "L", "XL", "2XL", "3XL"], "example": "M" },
+          "quantity": { "type": "integer", "minimum": 1, "default": 1, "example": 1 }
+        }
+      },
+      "CartResponse": {
+        "type": "object",
+        "properties": {
+          "items": { "type": "array", "items": { "type": "object" } },
+          "count": { "type": "integer", "example": 2 },
+          "total": { "type": "integer", "example": 978000 }
+        }
+      }
+    }
+  }
+}

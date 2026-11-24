@@ -6,10 +6,9 @@
 
 ## 💻 Chạy trực tiếp trên máy tính (Local)
 
-1. **Cài đặt thư viện**:
+1. **Cài đặt thư viện** (từ thư mục gốc dự án):
    ```bash
-   cd ai-service
-   pip install fastapi uvicorn pydantic pillow opencv-python numpy rembg
+   pip install -r requirements.txt
    ```
 
 2. **Khởi chạy Server**:

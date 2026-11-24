@@ -54,7 +54,7 @@ export function App(){
       </div>
     </div></header>
     {initError&&<div className="shell boot-error" role="alert"><CircleAlert size={16}/> {initError} <button className="text-button" onClick={()=>setRedo(n=>n+1)}>Tải lại</button></div>}
-    {fitting?<Fitting session={session} products={products} itemId={params.get('item_id')||''} look={params.get('look')} navigate={navigate} onSession={setSession} {...{saveProfile,onCart,notify}} onItem={setItem}/>:
+    {fitting?<Fitting session={session} products={products} itemId={params.get('item_id')||''} itemsParam={params.get('items')||''} look={params.get('look')} navigate={navigate} onSession={setSession} {...{saveProfile,onCart,notify}} addToCart={add} onItem={setItem}/>:
       account?<Account session={session} onSession={setSession} {...{products,navigate,editProfile,notify}}/>:
       <Shop {...{session,navigate,query,onCart,onDetail}} openChat={()=>setChat(true)} />}
     <footer className="site-footer"><div className="shell footer-inner"><Link to="/" navigate={navigate} className="brand"><strong>FORME<span>°</span></strong><small>STUDIO</small></Link><span>© {new Date().getFullYear()} FORME Studio</span><Link to={tryUrl()} navigate={navigate}>Phòng thử đồ <ArrowUpRight size={15}/></Link></div></footer>

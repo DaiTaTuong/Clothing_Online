@@ -8,6 +8,7 @@ Cần Node.js **24 trở lên**.
 
 ```powershell
 npm.cmd ci
+pip install -r requirements.txt
 npm.cmd run dev
 ```
 

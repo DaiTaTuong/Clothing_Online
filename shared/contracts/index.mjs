@@ -7,6 +7,15 @@ export const measurements = {
   height: ['Chiều cao', 145, 190, 'cm'], weight: ['Cân nặng', 40, 100, 'kg'],
   bust: ['Vòng ngực', 65, 135, 'cm'], waist: ['Vòng eo', 50, 125, 'cm'], hip: ['Vòng hông', 70, 145, 'cm'],
 };
+export const sizeGuide = {
+  XS:    { height: '148 – 155 cm', weight: '40 – 45 kg' },
+  S:     { height: '153 – 160 cm', weight: '45 – 50 kg' },
+  M:     { height: '158 – 165 cm', weight: '50 – 56 kg' },
+  L:     { height: '163 – 170 cm', weight: '56 – 63 kg' },
+  XL:    { height: '168 – 176 cm', weight: '63 – 72 kg' },
+  '2XL': { height: '173 – 182 cm', weight: '72 – 82 kg' },
+  '3XL': { height: '178 – 188 cm', weight: '82 – 94 kg' },
+};
 export const sampleProfile = { height: 165, weight: 54, bust: 86, waist: 69, hip: 93, tone: 2, style: '', faceShape: '' };
 export const categoryNames = { tops: 'Áo', bottoms: 'Quần & váy', dresses: 'Đầm liền' };
 export const occasionNames = { office: 'Đi làm', casual: 'Dạo phố', formal: 'Dự tiệc' };

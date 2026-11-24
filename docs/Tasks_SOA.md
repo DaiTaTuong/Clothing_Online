@@ -289,14 +289,15 @@ Thành viên **An Đức Minh Trí** tự tay thiết kế cấu trúc AI Micros
 
 ### 1.6. Chuẩn hóa Hợp đồng API Dùng chung (OpenAPI 3.0 JSON Specifications)
 
-Toàn bộ API của hệ thống được đặc tả bằng chuẩn **OpenAPI 3.0 định dạng JSON** tại thư mục `docs/api/` (dùng `$ref` tham chiếu schema dùng chung từ `docs/api/common-schemas.json`):
+Toàn bộ API của hệ thống được đặc tả bằng chuẩn **OpenAPI 3.0 định dạng JSON** tại thư mục `docs/api/` (dùng `$ref` tham chiếu schema dùng chung từ `docs/api/common-schemas.json`) và được API Gateway tự động hợp nhất phục vụ tại `GET /api/openapi.json`:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
 │                  DANH MỤC API DÙNG CHUNG & PHÂN CHIA 5 FILE JSON SPEC                    │
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
 │ 0. SCHEMA DÙNG CHUNG (docs/api/common-schemas.json - Cả nhóm thống nhất)                 │
-│    ErrorResponse { error: { code, message, requestId } }, HealthResponse, PaginationMeta │
+│    ErrorResponse { code, message, requestId }, HealthResponse, PaginationMeta            │
+│    GET  /api/openapi.json            -> Hợp nhất toàn bộ 5 file OpenAPI JSON của hệ thống│
 │                                                                                          │
 │ 1. IDENTITY, SESSION & PROFILE (docs/api/01-identity-profile.json - Doãn Duy Lợi)        │
 │    GET  /api/health                  -> Kiểm tra trạng thái sống của Backend Gateway     │
@@ -319,106 +320,106 @@ Toàn bộ API của hệ thống được đặc tả bằng chuẩn **OpenAPI 
 │ 3. AI STYLIST & CONVERSATION (docs/api/03-stylist-chat.json - Hoàng Lâm Tùng)            │
 │    GET  /api/conversations/:id       -> Lấy lịch sử hội thoại theo session               │
 │    POST /api/chat                    -> Gửi câu hỏi Stylist, nhận tư vấn & product cards │
-│    POST /api/stylist/validate-outfit -> (Mở rộng SOA) Kiểm tra xung đột slot & xếp layer│
+│    POST /api/stylist/validate-outfit -> Kiểm tra xung đột slot & sắp xếp layer_level     │
 │                                                                                          │
 │ 4. MEDIA & ASYNC TRY-ON JOBS (docs/api/04-media-tryon-jobs.json - Nguyễn Phúc Thành)     │
-│    POST /api/media                   -> Tải ảnh người dùng lên (tối đa 7MB)              │
+│    POST /api/media                   -> Tải ảnh người dùng lên (tối đa 5MB/7MB payload)  │
 │    GET/DELETE /api/media/:id         -> Đọc ảnh PNG (no-store) hoặc xóa ảnh theo owner   │
 │    POST /api/avatars, /api/try-ons   -> Tạo tác vụ bất đồng bộ (202 Accepted)            │
 │    GET  /api/jobs/:id                -> Polling trạng thái & tiến trình tác vụ           │
-│    GET  /api/try-ons                 -> Lịch sử các lượt thử đồ của owner                │
-│    PATCH /api/try-ons/:id            -> Lưu lượt thử đồ vào tài khoản                    │
+│    GET  /api/try-ons                 -> Lịch sử các lượt thử đồ đã lưu của owner         │
+│    PATCH /api/try-ons/:id            -> Lưu lượt thử đồ vào tài khoản (gia hạn TTL)      │
 │                                                                                          │
 │ 5. AI VISION MICROSERVICE & GATEWAY (docs/api/05-ai-vision.json - An Đức Minh Trí)      │
 │    GET  /health, /api/health         -> Kiểm tra trạng thái AI Microservice (FastAPI)    │
-│    POST /api/ai/validate-and-matting -> Bước 1: Kiểm tra toàn thân & tách nền #FFFFFF    │
-│    POST /api/ai/try-on               -> Bước 2: Phối đồ nhiều lớp (AI Service / 2D)      │
+│    POST /api/ai/validate-and-matting -> Bước 1: YOLOv8-Pose + tách nền trắng #FFFFFF     │
+│    POST /api/ai/try-on               -> Bước 2: Phối đồ nhiều lớp + Cache + Lưu lịch sử  │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-# PHẦN 2. KẾ HOẠCH PHÂN CÔNG NHIỆM VỤ API CHO 5 THÀNH VIÊN
+# PHẦN 2. KẾ HOẠCH PHÂN CÔNG TOÀN DIỆN (API JSON + WEB + AI) CHO 5 THÀNH VIÊN
 
-Phần API được chia đều cho **5 thành viên (20% khối lượng / người)** theo mô hình **Contract-First (đặc tả OpenAPI 3.0 bằng JSON trước → chuẩn hóa code & validation → viết test tự động)**. Mỗi thành viên chịu trách nhiệm trọn vẹn từ file đặc tả `.json`, logic xử lý, mã lỗi HTTP đến kiểm thử trong `tests/tests.mjs`.
+Dự án chia đều cho **5 thành viên (20% khối lượng / người)**. Mỗi thành viên phụ trách trọn vẹn **cả 2 lớp công việc** trong phân hệ của mình:
+- **Lớp A (Chuẩn SOA & API JSON):** Viết đặc tả OpenAPI 3.0 `.json` tại `docs/api/`, sở hữu 1 file router độc lập tại `backend/src/routes/`, viết automated test.
+- **Lớp B (Web / Hệ thống / AI Chuyên sâu):** Hoàn thiện giao diện, trải nghiệm người dùng, nhận diện hình ảnh lúc chụp và mô hình AI thực tế.
 
-### 2.1. Cấu trúc thư mục đặc tả JSON (`docs/api/`) và Phân định sở hữu
+### 2.1. Cấu trúc sở hữu đặc tả JSON (`docs/api/`), Router SOA và Phân hệ
 
-| Thành viên | Service / Bounded Context | File đặc tả JSON | Mã nguồn chịu trách nhiệm |
-| :--- | :--- | :--- | :--- |
-| **Doãn Duy Lợi** | **Identity, Session & Profile API** | `docs/api/01-identity-profile.json`<br>`docs/api/common-schemas.json` | `backend/src/server.mjs` (Auth, Session, Profile, Admin), `backend/src/platform/store.mjs`, `shared/contracts/index.mjs` |
-| **Nguyễn Xuân Tường** | **Catalog, Search & Cart API** | `docs/api/02-catalog-cart.json` | `backend/src/server.mjs` (Products, Search, Recommendations, Cart), `data/catalog.mjs`, `backend/src/modules/stylist/rules.mjs` |
-| **Hoàng Lâm Tùng** | **AI Stylist & Conversation API** | `docs/api/03-stylist-chat.json` | `backend/src/server.mjs` (Conversations, Chat), `backend/src/modules/stylist/llm.mjs`, `backend/src/modules/stylist/rules.mjs` |
-| **Nguyễn Phúc Thành** | **Media & Async Try-On Jobs API** | `docs/api/04-media-tryon-jobs.json` | `backend/src/server.mjs` (Media, Avatars, Try-Ons, Jobs), `backend/src/modules/tryon/jobs.mjs` |
-| **An Đức Minh Trí** | **AI Vision Microservice & Gateway API** | `docs/api/05-ai-vision.json` | `backend/src/server.mjs` (`/api/ai/*` Gateway), `backend/src/modules/tryon/providers.mjs`, `ai-service/app.py` |
+| Thành viên | File đặc tả JSON & Router SOA | Phân hệ Web / Hệ thống / AI phụ trách | Tỷ trọng |
+| :--- | :--- | :--- | :---: |
+| **Doãn Duy Lợi** | `docs/api/common-schemas.json`<br>`docs/api/01-identity-profile.json`<br>`backend/src/routes/identity.routes.mjs` | **API Gateway, SQLite Store, Auth/Session & Privacy Engine:** Cookie HttpOnly, CSRF Origin, Rate-limit, Merge Session, TTL 24h Sweep, endpoint `/api/openapi.json` | **20%** |
+| **Nguyễn Xuân Tường** | `docs/api/02-catalog-cart.json`<br>`backend/src/routes/catalog-cart.routes.mjs` | **Web Shop UI, Cart & Chatbot Integration:** Duy trì giao diện bán hàng, lọc/tìm kiếm thật, giỏ hàng hỗ trợ thêm cả set, nút *"Thử ngay"* & *"Phối cả set này"* | **20%** |
+| **Hoàng Lâm Tùng** | `docs/api/03-stylist-chat.json`<br>`backend/src/routes/stylist.routes.mjs` | **AI Stylist, Layering & Dataset 24 Sản phẩm:** Thuật toán xếp layer & giải quyết xung đột slot (`/api/stylist/validate-outfit`), LLM + fallback rules, chuẩn hóa 24 ảnh/caption cho Trí train LoRA | **20%** |
+| **Nguyễn Phúc Thành** | `docs/api/04-media-tryon-jobs.json`<br>`backend/src/routes/media-jobs.routes.mjs` | **Phòng phối đồ AI, Camera Guidance & Lịch sử:** Layout 3 cột, Camera Silhouette + kiểm tra ánh sáng/tỉ lệ realtime + đếm ngược chụp 3s/5s, Before/After `clip-path`, nối API Lưu & Lịch sử thật | **20%** |
+| **An Đức Minh Trí** | `docs/api/05-ai-vision.json`<br>`backend/src/routes/ai-vision.routes.mjs` | **AI Vision Microservice (FastAPI) & Train LoRA:** YOLOv8-Pose kiểm tra 17 keypoints toàn thân + BiRefNet/Rembg tách nền `#FFFFFF`, CatVTON/Diffusers + LoRA thật (`scripts/train/train_lora.py`), Cache hash, đo Loss/SSIM/CLIP | **20%** |
 
 ---
 
-### 2.2. Chi tiết đầu việc API từng thành viên
+### 2.2. Chi tiết đầu việc từng thành viên (API + Web/AI)
 
-#### 1. Doãn Duy Lợi — Identity, Session & Profile API (`01-identity-profile.json`)
-* **A1.1 — Thiết kế Schema dùng chung & Auth/Session JSON Spec:** Khởi tạo `docs/api/common-schemas.json` (`ErrorResponse`, `HealthResponse`, `PaginationMeta`) và viết `docs/api/01-identity-profile.json` cho `/api/health`, `/api/session`, `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`.
-* **A1.2 — Chuẩn hóa Bảo mật & Merge Session:** Rà soát và chuẩn hóa cookie `HttpOnly`, kiểm tra `Origin` chống CSRF (`403 ORIGIN`), rate-limit auth (`429`), và logic `mergeSession` gộp dữ liệu phiên khách vào tài khoản đăng nhập.
-* **A1.3 — Chuẩn hóa Profile & RBAC Admin API:** Đặc tả JSON Schema cho `GET/PUT /api/profile` (validate `height`, `weight`, `bust`, `waist`, `hip`, `tone` 0–5, `style`, `faceShape`, cập nhật `profileVersion`) và `GET /api/admin/overview` (`403 FORBIDDEN` nếu không phải admin).
-* **A1.4 — Kiểm thử tự động:** Viết test case cho luồng đăng ký (`201`), đăng nhập (`200`), sai mật khẩu (`401`), trùng email (`409`), validate profile (`422`) và phân quyền admin (`403`) trong `tests/tests.mjs`.
+#### 1. Doãn Duy Lợi — Identity, Session, Profile & API Gateway
+* **L1 (API JSON & Router):** Hoàn thiện `docs/api/common-schemas.json`, `docs/api/01-identity-profile.json`, `backend/src/routes/identity.routes.mjs` và endpoint gộp spec `GET /api/openapi.json`.
+* **L2 (Bảo mật & Session):** Chuẩn hóa Cookie `HttpOnly`, kiểm tra `Origin` (`403 ORIGIN`), rate-limit auth (`429`), merge guest session vào account và RBAC Admin (`403 FORBIDDEN`).
+* **L3 (Database & Privacy TTL 24h):** Đảm bảo cơ chế `sweep()` trong `backend/src/platform/store.mjs` tự động dọn session, media và jobs hết hạn sau 24 giờ.
+* **L4 (Kiểm thử):** Duy trì & mở rộng bộ test Auth/Profile/RBAC/OpenAPI trong `tests/soa.test.mjs` và `tests/demo.test.mjs`.
 
-#### 2. Nguyễn Xuân Tường — Catalog, Search & Cart API (`02-catalog-cart.json`)
-* **A2.1 — Đặc tả JSON Schema Catalog & Cart:** Viết `docs/api/02-catalog-cart.json` cho `/api/products`, `/api/products/:id`, `/api/recommendations`, `/api/search`, `/api/cart`, `/api/cart/items` (`POST`, `PATCH`, `DELETE`).
-* **A2.2 — Chuẩn hóa Phân trang & Bộ lọc tìm kiếm:** Thống nhất query params (`page`, `limit` 1–24, `category`, `occasion`, `tone`, `maxPrice`) và cấu trúc trả về `{ items, total, page }`; xử lý `404 NOT_FOUND` khi sản phẩm không tồn tại; đồng bộ bộ lọc giữa `GET /api/recommendations` và `POST /api/search`.
-* **A2.3 — Chuẩn hóa Giỏ hàng & Kiểm tra tồn kho:** Đảm bảo kiểm tra `item.stock[size]` trước khi thêm/cập nhật (`422 INVALID_CART` nếu hết hàng hoặc sai size) và tính nhất quán tổng số lượng, tạm tính ở `GET /api/cart`.
-* **A2.4 — Kiểm thử tự động:** Viết test case phân trang, lọc sản phẩm, chi tiết sản phẩm `404`, thêm/sửa/xóa giỏ hàng và case vượt tồn kho trong `tests/tests.mjs`.
+#### 2. Nguyễn Xuân Tường — Catalog, Search, Cart API & Shop UI
+* **Tu1 (API JSON & Router):** Hoàn thiện `docs/api/02-catalog-cart.json` và `backend/src/routes/catalog-cart.routes.mjs` (phân trang `page`/`limit`, lọc theo profile, kiểm tra tồn kho `stock[size]`).
+* **Tu2 (Web Shop & Search):** Đấu nối tìm kiếm, lọc theo vóc dáng/tông da/giá và nút *"Thử ngay"* trên toàn bộ 24 sản phẩm.
+* **Tu3 (Chat → Fitting Set & Cart):** Bổ sung nút *"Phối cả set này"* trong `Chat.jsx` để chuyển nhiều món sang phòng thử cùng lúc; đảm bảo giỏ hàng thêm từng món hoặc cả set chính xác.
+* **Tu4 (Kiểm thử):** Kiểm thử responsive Shop/Cart/Account và test API sản phẩm/giỏ hàng (kể cả vượt tồn kho `422`).
 
-#### 3. Hoàng Lâm Tùng — AI Stylist & Conversation API (`03-stylist-chat.json`)
-* **A3.1 — Đặc tả JSON Schema Stylist & Hội thoại:** Viết `docs/api/03-stylist-chat.json` cho `GET /api/conversations/:id`, `POST /api/chat` (ràng buộc `message` 1–500 ký tự, `page`: `shop | fitting`, cấu trúc `cards` gồm `productId`, `recommendedSize`) và endpoint mở rộng `POST /api/stylist/validate-outfit`.
-* **A3.2 — Chuẩn hóa Concurrency & Session Safety:** Đảm bảo cơ chế khóa `chatBusy` (`409 CHAT_BUSY`), rate-limit (`20 req/phút`), kiểm tra `SESSION_CHANGED` (`409`) nếu phiên thay đổi khi LLM đang xử lý, và giới hạn lịch sử 40 tin nhắn.
-* **A3.3 — Chuẩn hóa Fallback LLM & Layering:** Đảm bảo `llm.mjs` fallback mượt mà về `rules.mjs` khi thiếu/lỗi `OPENAI_API_KEY`; mọi `productId` trong `cards` đều tồn tại trong catalog; hoàn thiện logic kiểm tra trùng slot & xếp `layer_level`.
-* **A3.4 — Kiểm thử tự động:** Viết test case gửi câu hỏi hợp lệ, tin nhắn rỗng/quá dài (`422`), gọi song song (`409 CHAT_BUSY`), đọc hội thoại sai ID (`404`) trong `tests/tests.mjs`.
+#### 3. Hoàng Lâm Tùng — AI Stylist, Layering API & Dataset 24 Sản phẩm
+* **T1 (API JSON & Router):** Hoàn thiện `docs/api/03-stylist-chat.json` và `backend/src/routes/stylist.routes.mjs` (bao gồm `GET /api/conversations/:id`, `POST /api/chat`, `POST /api/stylist/validate-outfit`).
+* **T2 (Concurrency & Fallback):** Kiểm soát khóa `chatBusy` (`409`), `SESSION_CHANGED` (`409`), rate-limit (`20 req/phút`), fallback mượt giữa `llm.mjs` và `rules.mjs`, chống hallucination `productId`.
+* **T3 (Thuật toán Layering & Dataset):** Chuẩn hóa quy tắc xung đột slot (Đầm thay Top+Bottom; chọn món cùng slot tự ghi đè) và thứ tự lớp (`bottom` → `top layer 1` → `dress` → `outer layer 2`); chuẩn bị ảnh phẳng & caption 24 món cho Trí huấn luyện LoRA.
+* **T4 (Kiểm thử):** Test 20 kịch bản tư vấn phong cách + unit/API test `validate-outfit` và `chat`.
 
-#### 4. Nguyễn Phúc Thành — Media & Async Try-On Jobs API (`04-media-tryon-jobs.json`)
-* **A4.1 — Đặc tả JSON Schema Media & Async Jobs:** Viết `docs/api/04-media-tryon-jobs.json` cho `POST /api/media`, `GET/DELETE /api/media/:id`, `POST /api/avatars`, `POST /api/try-ons`, `GET /api/jobs/:id`, `GET /api/try-ons`, `PATCH /api/try-ons/:id`.
-* **A4.2 — Chuẩn hóa Media & Kiểm soát quyền sở hữu:** Đảm bảo giới hạn dung lượng upload (`7MB`), kiểm tra quyền sở hữu `owner` khi đọc/xóa media (`404 NOT_FOUND`), trả header `Content-Type: image/png` và `Cache-Control: private, no-store`.
-* **A4.3 — Chuẩn hóa Luồng Bất đồng bộ (202 Accepted + Polling):** Thống nhất schema trạng thái job (`queued`, `processing`, `completed`, `failed`), TTL dọn media/job hết hạn trong `jobs.mjs`, và lưu lượt thử đồ vào tài khoản qua `PATCH /api/try-ons/:id`.
-* **A4.4 — Kiểm thử tự động:** Viết test case upload/đọc/xóa media, tạo job async (`202`) + polling `/api/jobs/:id`, lấy lịch sử và lưu try-on trong `tests/tests.mjs`.
+#### 4. Nguyễn Phúc Thành — Media, Try-On Jobs API & Phòng Phối Đồ AI
+* **Th1 (API JSON & Router):** Hoàn thiện `docs/api/04-media-tryon-jobs.json` và `backend/src/routes/media-jobs.routes.mjs` (Media upload/stream/delete theo `owner`, Async Job `202 Accepted` + polling, lịch sử & lưu lượt thử).
+* **Th2 (Camera Guidance & Hẹn giờ chụp):** Nâng cấp `Fitting.jsx` với khung Silhouette Guide, kiểm tra ánh sáng/tỉ lệ khung hình trực tiếp khi bật camera, và **chế độ đếm ngược 3s / 5s** để người dùng kịp đứng toàn thân.
+* **Th3 (Trải nghiệm So sánh, Lưu & Giỏ hàng):** Sửa thanh trượt Before/After dùng `clip-path` chồng khít 100%; nối nút *"Lưu kết quả"* và *"Lịch sử phối đồ"* với DB thực; sửa nút *"Thêm cả bộ vào giỏ"* thêm trọn set vào giỏ hàng kèm chọn size tự động/thủ công; nhận nhiều món từ URL `?items=...`.
+* **Th4 (Kiểm thử):** Kiểm thử giao diện đa màn hình và viết API test cho `/api/media`, `/api/try-ons`, `/api/jobs/:id`.
 
-#### 5. An Đức Minh Trí — AI Vision Microservice & Gateway API (`05-ai-vision.json`)
-* **A5.1 — Đặc tả JSON Schema AI Vision 2 Bước:** Viết `docs/api/05-ai-vision.json` cho `GET /health`, `GET /api/health` (FastAPI), `POST /api/ai/validate-and-matting` (Bước 1) và `POST /api/ai/try-on` (Bước 2).
-* **A5.2 — Chuẩn hóa Hợp đồng Gateway ↔ FastAPI (`ai-service/app.py`):** Thống nhất payload giữa Node Gateway và `AI_SERVICE_URL` (`image` base64 ở bước 1; `person_image` + `garments` theo `layer_level` ở bước 2), cấu hình timeout (`25s` bước 1, `35s` bước 2).
-* **A5.3 — Chuẩn hóa Xử lý Lỗi & Fallback:** Trả mã lỗi tiếng Việt chuẩn (`400 INVALID_IMAGE`, `400 AI_VALIDATION_ERROR`, `400 INVALID_TRYON`, `500 TRYON_ERROR`), đồng bộ logic fallback `sharp` 2D khi `AI_SERVICE_URL` tắt để hệ thống luôn hoạt động ổn định.
-* **A5.4 — Kiểm thử tự động:** Viết test case validate ảnh thiếu chân/chụp ngang (`400`), thử đồ thiếu dữ liệu (`400`), và phối đồ nhiều lớp fallback thành công (`200`) trong `tests/tests.mjs`.
+#### 5. An Đức Minh Trí — AI Vision Microservice, Gateway Proxy & LoRA Thật
+* **Tr1 (API JSON & Router):** Hoàn thiện `docs/api/05-ai-vision.json` và `backend/src/routes/ai-vision.routes.mjs` (Gateway proxy sang `AI_SERVICE_URL`, timeout 25s/35s, **cache kết quả theo hash** và lưu lịch sử try-on vào SQLite/TTL 24h).
+* **Tr2 (Bước 1 — Nhận diện Khuôn mặt/Khung hình & Tách nền `#FFFFFF`):** Triển khai `YOLOv8-Pose` + nhận diện khuôn mặt hỗ trợ linh hoạt **Toàn thân (`full_body`) / Nửa người (`half_body`) / Cận mặt & vai (`portrait_upper`)** (bắt buộc đúng 1 người, thấy rõ khuôn mặt, đủ sáng/nét) + `BiRefNet`/`Rembg` tách nền trắng thuần `#FFFFFF` căn khung thông minh không cắt đầu/chân (`ImageOps.pad`).
+* **Tr3 (Bước 2 — Train LoRA thật & Virtual Try-On Thích ứng):** Dùng script huấn luyện Diffusers + PEFT LoRA thật tại `scripts/train/train_lora.py` trên GPU với dataset 24 sản phẩm; tích hợp inference Diffusers/CatVTON + LoRA (kèm fallback Pose/Face-Guided tự căn cổ & vai theo khuôn mặt cho ảnh nửa người/cận vai) tại `ai-service/app.py`.
+* **Tr4 (Kiểm thử & Học thuật):** Đo Loss Curve thật, SSIM/CLIP Score trên bộ ảnh kiểm thử và viết API test cho `/api/ai/validate-and-matting`, `/api/ai/try-on` (cache hit + error handling).
 
 ---
 
 ### 2.3. Quy chuẩn chung (API Governance) và Đầu việc nhóm
 
-1. **Contract-First với JSON:** Mọi endpoint đều phải có mặt trong `docs/api/*.json` với đầy đủ `requestBody`, `parameters`, `responses` (cả `2xx` và `4xx/5xx`) và `example`.
-2. **Định dạng lỗi thống nhất:** Mọi lỗi trả về theo schema chung trong `docs/api/common-schemas.json`:
+1. **Contract-First với JSON:** Mọi endpoint đều phải được khai báo trong `docs/api/*.json` với đầy đủ `parameters`, `requestBody`, `responses` (`2xx`, `4xx`, `5xx`) và ví dụ JSON thực tế.
+2. **Định dạng lỗi thống nhất (khớp 100% giữa Code, Test và JSON Spec):**
    ```json
    {
-     "error": {
-       "code": "INVALID_PROFILE",
-       "message": "Chiều cao phải nằm trong khoảng 145–190.",
-       "requestId": "uuid"
-     }
+     "code": "INVALID_PROFILE",
+     "message": "Chiều cao phải nằm trong khoảng 145–190.",
+     "requestId": "uuid"
    }
    ```
-3. **Quy ước mã HTTP chuẩn:** `200` (OK), `201` (Created), `202` (Accepted - Async Job), `400` (Bad Request / AI Validation), `401` (Unauthorized), `403` (Forbidden / Origin), `404` (Not Found), `409` (Conflict), `422` (Validation Error), `429` (Rate Limit), `500` (Internal Error).
+3. **Quy ước mã HTTP chuẩn:** `200` (OK), `201` (Created), `202` (Accepted - Async Job), `400` (Bad Request / AI Validation), `401` (Unauthorized), `403` (Forbidden / Origin), `404` (Not Found), `409` (Conflict), `413` (Body Limit), `415` (Content-Type), `422` (Validation Error), `429` (Rate Limit), `500` (Internal Error).
 4. **Đầu việc chung của cả 5 thành viên:**
-   * **G01:** Thống nhất `docs/api/common-schemas.json` và quy tắc đặt tên field/error code.
-   * **G02:** Import 5 file JSON vào Postman / Swagger Editor để review chéo hợp đồng API.
-   * **G03:** Chạy `npm.cmd test` kiểm tra toàn bộ test suite trước khi đóng băng phiên bản.
+   * **G01:** Thống nhất `docs/api/common-schemas.json` và kiểm tra `/api/openapi.json` trên Swagger Editor / Postman.
+   * **G02:** Ghép luồng xuyên suốt: Shop → Chatbot (*"Phối cả set này"*) → Camera Countdown → Bước 1 (Pose + Nền trắng) → Bước 2 (Try-On + Cache + Lưu lịch sử) → Thêm cả bộ vào giỏ.
+   * **G03:** Chạy `npm.cmd test` và `npm.cmd run build` xanh toàn bộ trước khi chốt báo cáo & thuyết trình.
 
 ---
 
 ### 2.4. Tổng hợp phân bổ khối lượng (Cân bằng 20% / thành viên)
 
-| Thành viên | Phân hệ API phụ trách | File đặc tả JSON | Đầu việc chính | Tỷ trọng |
-| :--- | :--- | :--- | :--- | :---: |
-| **Doãn Duy Lợi** | Identity, Session & Profile (8 endpoints) | `01-identity-profile.json` + `common-schemas.json` | Schema chung + Auth/Session/Profile/RBAC + Test | **20%** |
-| **Nguyễn Xuân Tường** | Catalog, Search & Cart (8 endpoints) | `02-catalog-cart.json` | Pagination/Filter/Search/Stock Validation + Test | **20%** |
-| **Hoàng Lâm Tùng** | AI Stylist & Conversation (3 endpoints + Layering) | `03-stylist-chat.json` | Concurrency/LLM Fallback/Layering + Test | **20%** |
-| **Nguyễn Phúc Thành** | Media & Async Try-On Jobs (8 endpoints) | `04-media-tryon-jobs.json` | Media Owner/TTL/Async 202 + Polling + Test | **20%** |
-| **An Đức Minh Trí** | AI Vision Microservice & Gateway (4 endpoints) | `05-ai-vision.json` | Gateway ↔ `app.py` Contract/Fallback/Error + Test | **20%** |
-| **TỔNG** | **Toàn bộ tầng API SOA** | **5 file OpenAPI JSON + Schema chung** | **Backend/AI Implementation + Test Suite** | **100%** |
+| Thành viên | File đặc tả JSON & Router | Nhiệm vụ Web / Hệ thống / AI | Tỷ trọng |
+| :--- | :--- | :--- | :---: |
+| **Doãn Duy Lợi** | `01-identity-profile.json` + `common-schemas.json` + `identity.routes.mjs` | Gateway, SQLite, Auth/Session, TTL 24h, `/api/openapi.json` | **20%** |
+| **Nguyễn Xuân Tường** | `02-catalog-cart.json` + `catalog-cart.routes.mjs` | Shop UI, Search/Filter, Cart cả set, Chat → Fitting | **20%** |
+| **Hoàng Lâm Tùng** | `03-stylist-chat.json` + `stylist.routes.mjs` | AI Stylist LLM/Rules, Layering, Dataset 24 sản phẩm | **20%** |
+| **Nguyễn Phúc Thành** | `04-media-tryon-jobs.json` + `media-jobs.routes.mjs` | Phòng thử đồ 3 cột, Camera Guide + Countdown, Before/After, Lưu/Lịch sử | **20%** |
+| **An Đức Minh Trí** | `05-ai-vision.json` + `ai-vision.routes.mjs` | YOLOv8-Pose + BiRefNet, Train LoRA thật + CatVTON/Try-On, Cache, SSIM/Loss | **20%** |
+| **TỔNG** | **6 file JSON OpenAPI + 5 Router Modules** | **Full-stack SOA + Web + AI Vision Pipeline** | **100%** |
 
 ---
 

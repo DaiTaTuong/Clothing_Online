@@ -1,0 +1,136 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "05 - AI Vision Microservice & Gateway Proxy API",
+    "version": "2.0.0",
+    "description": "Phụ trách: An Đức Minh Trí — Hợp đồng REST giữa Node API Gateway và FastAPI AI Microservice (ai-service/app.py) cho quy trình 2 bước: (1) Kiểm tra toàn thân YOLOv8-Pose & tách nền #FFFFFF, (2) Phối đồ Virtual Try-On phân tầng + Cache + Lưu lịch sử."
+  },
+  "tags": [
+    { "name": "AI Vision Pipeline", "description": "Kiểm tra ảnh toàn thân, tách nền trắng và phối đồ AI 2 bước" }
+  ],
+  "paths": {
+    "/api/ai/validate-and-matting": {
+      "post": {
+        "tags": ["AI Vision Pipeline"],
+        "summary": "Bước 1: Kiểm tra ảnh có khuôn mặt (toàn thân, nửa người hoặc cận mặt & vai), phân loại framing và tách nền trắng thuần #FFFFFF",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["image"],
+                "properties": {
+                  "image": { "type": "string", "description": "Ảnh người dùng định dạng Data URI base64 (tối đa 15MB payload)" },
+                  "preferredFraming": {
+                    "type": "string",
+                    "enum": ["full_body", "half_body", "portrait_upper"],
+                    "description": "Chế độ khung hình người dùng chọn (bỏ trống để AI tự phân loại)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ảnh đạt chuẩn có khuôn mặt rõ và đã tách nền trắng #FFFFFF (768x1024)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "image": { "type": "string", "description": "Ảnh PNG nền trắng Data URI base64" },
+                    "framing": { "type": "string", "enum": ["full_body", "half_body", "portrait_upper"], "example": "half_body" },
+                    "framingLabel": { "type": "string", "example": "Nửa người" },
+                    "supportedSlots": { "type": "array", "items": { "type": "string" }, "example": ["top", "outer", "dress"] },
+                    "engine": { "type": "string", "example": "yolov8-pose+rembg:birefnet-general" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ảnh thiếu khuôn mặt / quá nhỏ / mờ / tối / nhiều người (INVALID_IMAGE / AI_VALIDATION_ERROR)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          },
+          "429": {
+            "description": "Vượt giới hạn gọi AI (RATE_LIMIT)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/ai/try-on": {
+      "post": {
+        "tags": ["AI Vision Pipeline"],
+        "summary": "Bước 2: Phối nhiều lớp trang phục thích ứng theo framing (toàn thân / nửa người / cận mặt & vai) kèm Cache Hash & TTL 24h",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["personImage", "items"],
+                "properties": {
+                  "personImage": { "type": "string", "description": "Ảnh nền trắng từ Bước 1 (Data URI base64)" },
+                  "framing": { "type": "string", "enum": ["full_body", "half_body", "portrait_upper"] },
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": ["id"],
+                      "properties": {
+                        "id": { "type": "string", "example": "linen-shirt" },
+                        "name": { "type": "string" },
+                        "category": { "type": "string", "enum": ["tops", "bottoms", "dresses"] },
+                        "cut": { "type": "string" },
+                        "garmentImage": { "type": "string", "example": "/images/garments/linen-shirt.png" },
+                        "layer_level": { "type": "integer", "enum": [1, 2], "default": 1 },
+                        "slot": { "type": "string", "enum": ["top", "bottom", "outer", "dress"] }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Phối đồ hoàn tất, trả ảnh kết quả kèm jobId, framing và danh sách cảnh báo (nếu có)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "jobId": { "type": "string", "format": "uuid" },
+                    "imageUrl": { "type": "string", "example": "/api/media/550e8400-e29b-41d4-a716-446655440000" },
+                    "image": { "type": "string", "description": "Ảnh kết quả PNG Data URI base64" },
+                    "framing": { "type": "string", "enum": ["full_body", "half_body", "portrait_upper"] },
+                    "warnings": { "type": "array", "items": { "type": "string" } },
+                    "cached": { "type": "boolean" },
+                    "engine": { "type": "string", "example": "pose-face-guided-2d" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Thiếu ảnh người mẫu hoặc danh sách đồ (INVALID_TRYON)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          },
+          "500": {
+            "description": "Lỗi xử lý phối đồ (TRYON_ERROR)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    }
+  }
+}

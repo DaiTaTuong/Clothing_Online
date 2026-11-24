@@ -180,7 +180,7 @@ select{border:1px solid var(--line);background:#fff;border-radius:5px;padding:7p
 .size-pick{display:flex;justify-content:space-between;align-items:center;gap:5px}
 .size-pick small{color:var(--ai);font-weight:700}
 .size-options{display:flex;gap:7px;margin:8px 0 12px;flex-wrap:wrap}
-.size-options button{width:42px;height:39px;border:1px solid var(--line);background:#fff;border-radius:4px}
+.size-options button{min-width:46px;height:39px;padding:0 6px;border:1px solid var(--line);background:#fff;border-radius:4px}
 .size-options button.current{background:var(--green);color:#fff}
 .size-chart{margin-bottom:12px;color:var(--muted);font-size:12px}
 .size-chart summary{cursor:pointer}

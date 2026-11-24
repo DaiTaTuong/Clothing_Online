@@ -19,7 +19,7 @@ export function parseIntent(text) {
   const tone = find(q,/\bda (ngam|nau|toi)\b/) ? 'deep' : find(q,/\bda sang\b/) ? 'light' : find(q,/\bda trung tinh\b/) ? 'medium' : '';
   const raw = q.match(/\b(?:duoi|toi da|ngan sach|khong qua|tam|khoang)\s+(\d+(?:[.,]\d+)?)\s*(trieu|tr|nghin|ngan|k|dong|vnd)?\b/);
   const budget = raw ? Math.round((raw[2] ? Number(raw[1].replace(',','.')) : Number(raw[1].replace(/[.,]/g,''))) * (['trieu','tr'].includes(raw[2]) ? 1000000 : ['nghin','ngan','k'].includes(raw[2]) ? 1000 : 1)) : null;
-  const requestedSize = q.match(/\bsize (xs|s|m|l|xl)\b/)?.[1]?.toUpperCase();
+  const requestedSize = q.match(/\bsize (xs|s|m|l|xl|2xl|3xl)\b/)?.[1]?.toUpperCase();
 
   // Nhận diện kiểu dáng (Cut) đa dạng từ khóa
   let cut = '';

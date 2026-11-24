@@ -1,0 +1,206 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "04 - Media & Async Try-On Jobs API",
+    "version": "2.0.0",
+    "description": "Phụ trách: Nguyễn Phúc Thành — Quản lý ảnh người dùng theo quyền sở hữu (TTL 24h), tác vụ thử đồ bất đồng bộ (202 Accepted + Polling) và lưu lịch sử phối đồ."
+  },
+  "tags": [
+    { "name": "Media", "description": "Tải lên, đọc và xóa ảnh theo owner với Cache-Control: private, no-store" },
+    { "name": "Async Try-On Jobs", "description": "Tạo tác vụ bất đồng bộ, polling trạng thái và lưu lịch sử" }
+  ],
+  "paths": {
+    "/api/media": {
+      "post": {
+        "tags": ["Media"],
+        "summary": "Tải ảnh PNG/JPEG/WebP lên lưu trữ tạm thời (TTL 24h)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["image"],
+                "properties": {
+                  "image": { "type": "string", "description": "Data URI base64 (tối đa 5MB ảnh gốc)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tải lên thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "url": { "type": "string", "example": "/api/media/550e8400-e29b-41d4-a716-446655440000" },
+                    "expiresAt": { "type": "string", "format": "date-time" },
+                    "profileVersion": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Định dạng hoặc kích thước ảnh không hợp lệ (INVALID_IMAGE)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/media/{id}": {
+      "get": {
+        "tags": ["Media"],
+        "summary": "Đọc ảnh PNG thuộc phiên sở hữu",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dữ liệu ảnh nhị phân PNG (private, no-store)",
+            "content": { "image/png": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "404": {
+            "description": "Không tìm thấy hoặc không có quyền truy cập (NOT_FOUND)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Media"],
+        "summary": "Xóa ảnh khuôn mặt/gốc và hủy toàn bộ job liên quan",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Xóa thành công, trả về phiên đã cập nhật", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "404": { "description": "Không tìm thấy ảnh (NOT_FOUND)", "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/avatars": {
+      "post": {
+        "tags": ["Async Try-On Jobs"],
+        "summary": "Tạo tác vụ dựng phôi vóc dáng bất đồng bộ (202 Accepted)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["profileVersion"],
+                "properties": {
+                  "profileVersion": { "type": "integer" },
+                  "useFace": { "type": "boolean", "default": false },
+                  "consent": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "Đã nhận tác vụ", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobView" } } } },
+          "409": { "description": "Hồ sơ đã thay đổi (STALE_PROFILE)", "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/try-ons": {
+      "get": {
+        "tags": ["Async Try-On Jobs"],
+        "summary": "Lấy danh sách các lượt thử đồ đã lưu của phiên/tài khoản",
+        "responses": {
+          "200": {
+            "description": "Danh sách lượt thử đã lưu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/JobView" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Async Try-On Jobs"],
+        "summary": "Tạo tác vụ thử đồ bất đồng bộ (202 Accepted)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["profileVersion", "productId"],
+                "properties": {
+                  "profileVersion": { "type": "integer" },
+                  "productId": { "type": "string" },
+                  "mode": { "type": "string", "enum": ["2d", "ai"], "default": "2d" },
+                  "consent": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "Đã đưa tác vụ vào hàng đợi (hoặc trả ngay cache)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobView" } } } },
+          "404": { "description": "Sản phẩm không tồn tại (NOT_FOUND)", "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } } },
+          "409": { "description": "Hồ sơ cũ (STALE_PROFILE)", "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/try-ons/{id}": {
+      "patch": {
+        "tags": ["Async Try-On Jobs"],
+        "summary": "Lưu một lượt thử đồ hoàn tất vào hồ sơ (gia hạn TTL 30 ngày cho user)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Đã đánh dấu lưu", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobView" } } } },
+          "404": { "description": "Không tìm thấy lượt thử (NOT_FOUND)", "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/jobs/{id}": {
+      "get": {
+        "tags": ["Async Try-On Jobs"],
+        "summary": "Polling trạng thái và đường dẫn ảnh kết quả của tác vụ",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Trạng thái tác vụ hiện tại", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobView" } } } },
+          "404": { "description": "Không tìm thấy tác vụ (NOT_FOUND)", "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "JobView": {
+        "type": "object",
+        "properties": {
+          "jobId": { "type": "string", "format": "uuid" },
+          "type": { "type": "string", "enum": ["avatar", "try-on"] },
+          "profileVersion": { "type": "integer" },
+          "productId": { "type": "string", "nullable": true },
+          "productIds": { "type": "array", "items": { "type": "string" } },
+          "mode": { "type": "string", "enum": ["2d", "face", "ai"] },
+          "status": { "type": "string", "enum": ["queued", "processing", "completed", "failed"] },
+          "stage": { "type": "string" },
+          "saved": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "imageUrl": { "type": "string", "nullable": true },
+          "error": { "type": "string", "nullable": true }
+        }
+      }
+    }
+  }
+}

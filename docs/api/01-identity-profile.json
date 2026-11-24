@@ -1,0 +1,259 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "01 - Identity, Session, Profile & Admin API",
+    "version": "2.0.0",
+    "description": "Phụ trách: Doãn Duy Lợi — Quản lý phiên khách/tài khoản, xác thực Cookie HttpOnly, hồ sơ vóc dáng và bảng tổng quan quản trị."
+  },
+  "tags": [
+    { "name": "Identity & Session", "description": "Health, Session, Auth và Merge Guest Session" },
+    { "name": "Profile & Admin", "description": "Hồ sơ số đo vóc dáng và thống kê quản trị demo" }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["Identity & Session"],
+        "summary": "Kiểm tra trạng thái Backend Gateway",
+        "responses": {
+          "200": {
+            "description": "Gateway đang hoạt động",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./common-schemas.json#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "tags": ["Identity & Session"],
+        "summary": "Lấy bản hợp nhất OpenAPI 3.0 JSON của toàn bộ hệ thống",
+        "responses": {
+          "200": {
+            "description": "Tài liệu OpenAPI 3.0 JSON hợp nhất từ 5 phân hệ",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    },
+    "/api/session": {
+      "get": {
+        "tags": ["Identity & Session"],
+        "summary": "Lấy thông tin phiên hiện tại (tự cấp phiên khách nếu chưa có)",
+        "responses": {
+          "200": {
+            "description": "Thông tin phiên đầy đủ",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SessionPayload" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Identity & Session"],
+        "summary": "Đăng ký tài khoản mới và gộp dữ liệu phiên khách",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Đăng ký thành công, trả về phiên đã gộp",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionPayload" } } }
+          },
+          "409": {
+            "description": "Email đã tồn tại (EMAIL_EXISTS)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          },
+          "422": {
+            "description": "Dữ liệu không hợp lệ (INVALID_LOGIN / INVALID_NAME)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          },
+          "429": {
+            "description": "Vượt giới hạn tốc độ (RATE_LIMIT)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Identity & Session"],
+        "summary": "Đăng nhập tài khoản và gộp dữ liệu phiên khách",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đăng nhập thành công",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionPayload" } } }
+          },
+          "401": {
+            "description": "Sai email hoặc mật khẩu (INVALID_LOGIN)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          },
+          "422": {
+            "description": "Sai định dạng email/mật khẩu (INVALID_LOGIN)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["Identity & Session"],
+        "summary": "Đăng xuất và khởi tạo phiên khách mới",
+        "responses": {
+          "200": {
+            "description": "Đăng xuất thành công",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionPayload" } } }
+          }
+        }
+      }
+    },
+    "/api/profile": {
+      "get": {
+        "tags": ["Profile & Admin"],
+        "summary": "Lấy hồ sơ vóc dáng và profileVersion hiện tại",
+        "responses": {
+          "200": {
+            "description": "Hồ sơ hiện tại",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": { "$ref": "#/components/schemas/BodyProfile" },
+                    "profileVersion": { "type": "integer", "minimum": 0 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Profile & Admin"],
+        "summary": "Cập nhật số đo cơ thể, tông da, phong cách và dáng mặt",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BodyProfile" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật thành công, tăng profileVersion nếu số đo hoặc tông da thay đổi",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionPayload" } } }
+          },
+          "422": {
+            "description": "Số đo hoặc tông da ngoài ngưỡng cho phép (INVALID_PROFILE)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/admin/overview": {
+      "get": {
+        "tags": ["Profile & Admin"],
+        "summary": "Lấy thống kê tổng quan hệ thống (chỉ dành cho admin demo)",
+        "responses": {
+          "200": {
+            "description": "Số liệu tổng quan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "products": { "type": "integer" },
+                    "accounts": { "type": "integer" },
+                    "jobs": { "type": "integer" },
+                    "settings": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền quản trị (FORBIDDEN)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["name", "email", "password"],
+        "properties": {
+          "name": { "type": "string", "minLength": 2, "maxLength": 60, "example": "Doãn Duy Lợi" },
+          "email": { "type": "string", "format": "email", "maxLength": 200, "example": "loi@forme.demo" },
+          "password": { "type": "string", "minLength": 8, "maxLength": 128, "example": "FormeStudio2026!" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "example": "studio@forme.demo" },
+          "password": { "type": "string", "minLength": 8, "maxLength": 128, "example": "FormeStudio2026!" }
+        }
+      },
+      "BodyProfile": {
+        "type": "object",
+        "required": ["height", "weight", "bust", "waist", "hip", "tone"],
+        "properties": {
+          "height": { "type": "integer", "minimum": 145, "maximum": 190, "example": 165 },
+          "weight": { "type": "integer", "minimum": 40, "maximum": 100, "example": 54 },
+          "bust": { "type": "integer", "minimum": 65, "maximum": 135, "example": 86 },
+          "waist": { "type": "integer", "minimum": 50, "maximum": 125, "example": 69 },
+          "hip": { "type": "integer", "minimum": 70, "maximum": 145, "example": 93 },
+          "tone": { "type": "integer", "minimum": 0, "maximum": 5, "example": 2 },
+          "style": { "type": "string", "enum": ["", "minimal", "classic", "relaxed"], "example": "minimal" },
+          "faceShape": { "type": "string", "enum": ["", "oval", "round", "square", "heart"], "example": "oval" }
+        }
+      },
+      "UserInfo": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "role": { "type": "string", "enum": ["member", "admin"] }
+        }
+      },
+      "SessionPayload": {
+        "type": "object",
+        "properties": {
+          "user": { "$ref": "#/components/schemas/UserInfo" },
+          "profile": { "$ref": "#/components/schemas/BodyProfile" },
+          "profileVersion": { "type": "integer", "minimum": 0 },
+          "faceId": { "type": "string", "nullable": true },
+          "conversationId": { "type": "string", "format": "uuid" },
+          "cart": { "type": "object" },
+          "settings": { "type": "object" }
+        }
+      }
+    }
+  }
+}

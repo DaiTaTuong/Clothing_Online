@@ -87,21 +87,28 @@ export async function localGarmentTryOn(base, product, fullOutfit = null) {
 export async function virtualTryOn(base, product, fullOutfit = null) {
   if (process.env.AI_SERVICE_URL) {
     const garment = await readFile(new URL('../../../../frontend/public'+product.garmentImage,import.meta.url));
-    const url = process.env.AI_SERVICE_URL.replace(/\/$/, '') + '/try-on';
+    const url = process.env.AI_SERVICE_URL.replace(/\/$/, '') + '/api/ai/try-on';
     try {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(90000),
         body: JSON.stringify({
-          model_image: dataUri(base),
-          garment_image: dataUri(garment, 'png'),
-          category: product.category === 'dresses' ? 'one-pieces' : product.category,
+          person_image: dataUri(base),
+          garments: [{
+            id: product.id,
+            name: product.name,
+            category: product.category,
+            cut: product.cut || '',
+            garment_image: dataUri(garment, 'png'),
+            layer_level: product.cut === 'blazer' ? 2 : 1,
+            slot: product.cut === 'blazer' ? 'outer' : (product.category === 'bottoms' ? 'bottom' : (product.category === 'dresses' ? 'dress' : 'top'))
+          }]
         })
       });
       if (res.ok) {
         const data = await res.json();
-        return imageData(data.image || data.output);
+        if (data.success && (data.image || data.output)) return imageData(data.image || data.output);
       }
     } catch (e) {
       console.warn('AI Service Try-on unreachable, falling back to local compositing:', e.message);

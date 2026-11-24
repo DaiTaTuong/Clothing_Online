@@ -1,0 +1,165 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "03 - AI Stylist, Conversation & Layering API",
+    "version": "2.0.0",
+    "description": "Phụ trách: Hoàng Lâm Tùng — Hội thoại tư vấn phong cách cá nhân hóa (LLM + Rules fallback) và thuật toán giải quyết xung đột slot / phân tầng layer."
+  },
+  "tags": [
+    { "name": "Stylist & Chat", "description": "Chatbot tư vấn thời trang và chuẩn hóa bộ phối đồ" }
+  ],
+  "paths": {
+    "/api/conversations/{id}": {
+      "get": {
+        "tags": ["Stylist & Chat"],
+        "summary": "Lấy lịch sử hội thoại của phiên hiện tại",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách tin nhắn hội thoại",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationResponse" } } }
+          },
+          "404": {
+            "description": "Không tìm thấy hội thoại hoặc không thuộc phiên hiện tại (NOT_FOUND)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "tags": ["Stylist & Chat"],
+        "summary": "Gửi câu hỏi cho AI Stylist và nhận lời tư vấn kèm thẻ sản phẩm thật",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChatRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lịch sử hội thoại mới nhất sau khi Stylist trả lời",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConversationResponse" } } }
+          },
+          "409": {
+            "description": "Stylist đang xử lý tin trước đó (CHAT_BUSY) hoặc phiên đã đổi (SESSION_CHANGED)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          },
+          "422": {
+            "description": "Nội dung tin nhắn rỗng hoặc vượt 500 ký tự (INVALID_MESSAGE)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          },
+          "429": {
+            "description": "Vượt quá 20 tin nhắn/phút (RATE_LIMIT)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/stylist/validate-outfit": {
+      "post": {
+        "tags": ["Stylist & Chat"],
+        "summary": "Giải quyết xung đột slot trang phục và sắp xếp thứ tự lớp (Layering) trước khi gửi sang AI Try-On",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ValidateOutfitRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Danh sách trang phục đã chuẩn hóa theo thứ tự mặc lớp và danh sách thông báo thay thế slot",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidateOutfitResponse" } } }
+          },
+          "422": {
+            "description": "Danh sách productIds rỗng hoặc không hợp lệ (INVALID_OUTFIT)",
+            "content": { "application/json": { "schema": { "$ref": "./common-schemas.json#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatRequest": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string", "minLength": 1, "maxLength": 500, "example": "phối set đi làm dưới 1,2 triệu" },
+          "page": { "type": "string", "enum": ["shop", "fitting"], "default": "shop" },
+          "productId": { "type": "string", "nullable": true }
+        }
+      },
+      "ConversationResponse": {
+        "type": "object",
+        "properties": {
+          "conversationId": { "type": "string", "format": "uuid" },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "role": { "type": "string", "enum": ["user", "assistant"] },
+                "text": { "type": "string" },
+                "cards": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "productId": { "type": "string" },
+                      "recommendedSize": { "type": "string", "nullable": true }
+                    }
+                  }
+                },
+                "createdAt": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      },
+      "ValidateOutfitRequest": {
+        "type": "object",
+        "required": ["productIds"],
+        "properties": {
+          "productIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" },
+            "example": ["ivory-tee", "blue-jeans", "navy-blazer"]
+          }
+        }
+      },
+      "ValidateOutfitResponse": {
+        "type": "object",
+        "properties": {
+          "orderedItems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "category": { "type": "string" },
+                "cut": { "type": "string" },
+                "slot": { "type": "string", "enum": ["top", "bottom", "outer", "dress"] },
+                "layer_level": { "type": "integer", "enum": [1, 2] },
+                "garmentImage": { "type": "string" }
+              }
+            }
+          },
+          "notifications": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
