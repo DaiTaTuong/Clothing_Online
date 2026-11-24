@@ -1,7 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {ArrowUpRight,Send,Sparkles,X} from 'lucide-react';
 import {money} from '../../../../shared/contracts/index.mjs';
-import {api,tryUrl} from '../../app/api.js';
+import {api,tryUrl,trySetUrl} from '../../app/api.js';
 import {IconButton,Link} from '../../components/ui/index.jsx';
 const prompts=['Phối đồ đi chơi cuối tuần','Màu nào tôn da mình?','Tìm quần hack chiều cao'];
 export function Chat({open,setOpen,session,products,navigate,page,productId}) {
@@ -22,8 +22,9 @@ export function Chat({open,setOpen,session,products,navigate,page,productId}) {
       <div className="chat-header"><span className="chat-spark"><Sparkles size={21}/></span><div><strong>FORME Stylist</strong><small>{session?.profile?`Hồ sơ: ${session.profile.height} cm · ${session.profile.weight} kg`:session?.settings.stylist==='llm'?'Trợ lý thời trang AI':'Tư vấn theo danh mục'}</small></div><IconButton label="Đóng Stylist" onClick={()=>setOpen(false)}><X size={20}/></IconButton></div>
       <div className="chat-messages" role="log" aria-label="Hội thoại">
         <p className="chat-bubble assistant">Chào bạn! Hôm nay bạn muốn mặc gì?</p>
-        {messages.map(m=><div key={m.id} className={'chat-message '+m.role}><p className={'chat-bubble '+m.role}>{m.text}</p>
-          {m.cards?.map(c=>{const p=products[c.productId];return p&&<article className="chat-product" key={c.productId}><img src={p.image} alt=""/><div><strong>{p.name}</strong><small>{money(p.price)}{c.recommendedSize&&` · Size ${c.recommendedSize}`}</small><Link className="text-button" to={tryUrl(p.id)} navigate={navigate} onClick={()=>setOpen(false)}>Thử ngay <ArrowUpRight size={13}/></Link></div></article>;})}</div>)}
+        {messages.map(m=>{const validCards=(m.cards||[]).filter(c=>products[c.productId]);return <div key={m.id} className={'chat-message '+m.role}><p className={'chat-bubble '+m.role}>{m.text}</p>
+          {validCards.map(c=>{const p=products[c.productId];return <article className="chat-product" key={c.productId}><img src={p.image} alt=""/><div><strong>{p.name}</strong><small>{money(p.price)}{c.recommendedSize&&` · Size ${c.recommendedSize}`}</small><Link className="text-button" to={tryUrl(p.id)} navigate={navigate} onClick={()=>setOpen(false)}>Thử ngay <ArrowUpRight size={13}/></Link></div></article>;})}
+          {validCards.length>=2&&<Link className="btn btn-outline" style={{marginTop:'6px',fontSize:'12px',padding:'6px 10px'}} to={trySetUrl(validCards.map(c=>c.productId))} navigate={navigate} onClick={()=>setOpen(false)}><Sparkles size={13}/> Phối cả set này ({validCards.length} món)</Link>}</div>;})}
         {pending&&<><p className="chat-bubble user">{pending}</p><p className="chat-bubble assistant muted">Đang chọn đồ…</p></>}
         {error&&<p className="error" role="alert">{error}</p>}<div ref={bottom}/>
       </div>

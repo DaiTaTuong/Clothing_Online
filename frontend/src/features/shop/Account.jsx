@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import {ArrowRight, Bookmark, Check, ChevronRight, Eye, EyeOff, LogOut, Minus, Plus, Ruler, Shield, ShoppingBag, Trash2, UserRound} from 'lucide-react';
-import {categoryNames,fitSize,measurements,money,sampleProfile,styles,faceShapes,tones} from '../../../../shared/contracts/index.mjs';
+import {categoryNames,fitSize,measurements,money,sampleProfile,sizeGuide,styles,faceShapes,tones} from '../../../../shared/contracts/index.mjs';
 import {api,tryUrl} from '../../app/api.js';
 import {Dialog,Empty,IconButton,Link} from '../../components/ui/index.jsx';
 
@@ -30,9 +30,9 @@ export function ProfileDialog({session,close,navigate,save}) {
 export function SizeDialog({product:p,profile,close,navigate,add,showTry=true}) {
   const recommended=fitSize(p,profile), [size,setSize]=useState(recommended||''),[busy,setBusy]=useState(false),[error,setError]=useState('');
   return <Dialog title={p.name} close={close} eyebrow={categoryNames[p.category]}><div className="size-product"><img src={p.image} alt={p.name}/><div><strong>{money(p.price)}</strong><p>{p.color} · {p.description}</p>{showTry&&<Link className="text-button" to={tryUrl(p.id)} navigate={navigate} onClick={close}>Thử đồ <ChevronRight size={14}/></Link>}</div></div>
-    <div className="size-pick"><strong>Chọn size</strong>{recommended&&<small>Tham khảo size {recommended}</small>}</div>
-    <div className="size-options">{Object.entries(p.stock).map(([s,n])=><button key={s} type="button" className={s===size?'current':''} disabled={!n} aria-pressed={s===size} onClick={()=>setSize(s)}>{s}</button>)}</div>
-    <details className="size-chart"><summary>Bảng size (cm)</summary><table><thead><tr><th>Size</th>{p.category!=='bottoms'&&<th>Ngực</th>}{p.category!=='tops'&&<><th>Eo</th><th>Hông</th></>}</tr></thead><tbody>{Object.entries(p.sizeChart).map(([s,v])=><tr key={s}><th>{s}</th>{p.category!=='bottoms'&&<td>{v.bust}</td>}{p.category!=='tops'&&<><td>{v.waist}</td><td>{v.hip}</td></>}</tr>)}</tbody></table><small>Số đo cơ thể tối đa theo bảng mẫu.</small></details>
+    <div className="size-pick"><strong>Chọn size</strong></div>
+    <div className="size-options">{Object.keys(sizeGuide).map(s=>{const n=p.stock?.[s]??0;return <button key={s} type="button" className={s===size?'current':''} disabled={!n} aria-pressed={s===size} onClick={()=>setSize(s)}>{s}</button>;})}</div>
+    <details className="size-chart"><summary>Bảng size gợi ý</summary><table><thead><tr><th>Size</th><th>Chiều cao</th><th>Cân nặng</th></tr></thead><tbody>{Object.entries(sizeGuide).map(([s,g])=><tr key={s}><th>{s}</th><td>{p.sizeChart?.[s]?.height||g.height}</td><td>{p.sizeChart?.[s]?.weight||g.weight}</td></tr>)}</tbody></table><small>Gợi ý chọn size theo chiều cao và cân nặng; nếu phân vân giữa 2 size, hãy ưu tiên size lớn hơn.</small></details>
     {error&&<p role="alert" className="error">{error}</p>}
     <button className="btn btn-primary wide" disabled={!size||busy} onClick={async()=>{setBusy(true);setError('');try{await add(p,size);close();}catch(e){setError(e.message);}finally{setBusy(false);}}}><ShoppingBag size={17}/> Thêm vào giỏ</button>
   </Dialog>;

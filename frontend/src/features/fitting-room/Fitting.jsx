@@ -2,75 +2,140 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Camera, Upload, Check, LoaderCircle, Sparkles, ShoppingBag,
   Download, Bookmark, Trash2, History, Shirt, Layers, AlertCircle,
-  ArrowRightLeft, RefreshCw, Eye, Image as ImageIcon
+  ArrowRightLeft, Eye, Image as ImageIcon, Timer, Sun
 } from 'lucide-react';
-import { categoryNames, money } from '../../../../shared/contracts/index.mjs';
-import { api, tryUrl } from '../../app/api.js';
-import { Dialog, Empty, IconButton, Link } from '../../components/ui/index.jsx';
+import { fitSize, money } from '../../../../shared/contracts/index.mjs';
+import { api } from '../../app/api.js';
+import { Dialog, Empty, IconButton } from '../../components/ui/index.jsx';
 
-export function Fitting({ session, products, itemId, look, navigate, onSession, onCart, notify, onItem }) {
+function pickDefaultSize(product, profile) {
+  const recommended = fitSize(product, profile);
+  if (recommended) return recommended;
+  return Object.entries(product.stock || {}).find(([, qty]) => qty > 0)?.[0] || 'M';
+}
+
+export function Fitting({ session, products, itemId, itemsParam, navigate, onCart, addToCart, notify, onItem }) {
   // --- 1. State Quản lý Ảnh Người dùng & Bước 1 (Kiểm tra & Tách nền) ---
-  const [personImage, setPersonImage] = useState(null);       // Ảnh gốc (Base64)
-  const [mattedImage, setMattedImage] = useState(null);       // Ảnh sau Bước 1 (Nền trắng #FFFFFF)
-  const [step1Status, setStep1Status] = useState('idle');     // 'idle' | 'validating' | 'matted' | 'error'
+  const [personImage, setPersonImage] = useState(null);
+  const [mattedImage, setMattedImage] = useState(null);
+  const [framingMode, setFramingMode] = useState('auto'); // 'auto' | 'full_body' | 'half_body' | 'portrait_upper'
+  const [detectedFraming, setDetectedFraming] = useState(null); // { framing, label, supportedSlots }
+  const [step1Status, setStep1Status] = useState('idle'); // 'idle' | 'validating' | 'matted' | 'error'
   const [step1Error, setStep1Error] = useState('');
+  const [tryOnWarnings, setTryOnWarnings] = useState([]);
   const [cameraActive, setCameraActive] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [lightStatus, setLightStatus] = useState('checking'); // 'checking' | 'good' | 'low'
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const fileInputRef = useRef(null);
+  const timerRef = useRef(null);
 
-  // --- 2. State Quản lý Slot Trang phục & Phân tầng Layer ---
-  // Slot: top (Áo trong), bottom (Quần/Váy), outer (Áo khoác ngoài - Layer 2), dress (Đầm)
-  const [outfit, setOutfit] = useState({
-    top: null,
-    bottom: null,
-    outer: null,
-    dress: null
-  });
+  // --- 2. State Quản lý Slot Trang phục, Size & Phân tầng Layer ---
+  const [outfit, setOutfit] = useState({ top: null, bottom: null, outer: null, dress: null });
+  const [sizes, setSizes] = useState({});
   const [slotNotification, setSlotNotification] = useState('');
 
-  // --- 3. State Quản lý Bước 2 (Phối đồ AI & So sánh) ---
-  const [resultImage, setResultImage] = useState(null);       // Ảnh kết quả sau Bước 2
-  const [step2Status, setStep2Status] = useState('idle');     // 'idle' | 'fitting' | 'completed' | 'error'
+  // --- 3. State Quản lý Bước 2 (Phối đồ AI, Lưu & Lịch sử) ---
+  const [resultImage, setResultImage] = useState(null);
+  const [resultJobId, setResultJobId] = useState(null);
+  const [step2Status, setStep2Status] = useState('idle'); // 'idle' | 'fitting' | 'completed' | 'error'
   const [step2Error, setStep2Error] = useState('');
-  const [viewMode, setViewMode] = useState('after');          // 'before' | 'after' | 'split'
-  const [splitPos, setSplitPos] = useState(50);               // Vị trí thanh trượt Before/After (0 - 100%)
+  const [viewMode, setViewMode] = useState('after'); // 'before' | 'after' | 'split'
+  const [splitPos, setSplitPos] = useState(50);
   const [tab, setTab] = useState('');
   const [history, setHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [addingSet, setAddingSet] = useState(false);
 
-  // Đồng bộ itemId từ URL khi mở trang
+  // Đồng bộ ?item_id=... hoặc ?items=id1,id2 từ URL (Shop / Chatbot "Phối cả set này")
   useEffect(() => {
-    if (!itemId || !products[itemId]) return;
-    const p = products[itemId];
-    onItem?.(p.id);
-    handleSelectGarment(p);
-  }, [itemId, products]);
+    if (!products || Object.keys(products).length === 0) return;
+    if (itemsParam) {
+      const ids = itemsParam.split(',').map(s => s.trim()).filter(id => products[id]);
+      if (ids.length > 0) {
+        const next = { top: null, bottom: null, outer: null, dress: null };
+        for (const id of ids) {
+          const p = products[id];
+          if (p.category === 'dresses') { next.top = null; next.bottom = null; next.dress = p; }
+          else if (p.cut === 'blazer') next.outer = p;
+          else if (p.category === 'bottoms') { next.bottom = p; next.dress = null; }
+          else { next.top = p; next.dress = null; }
+        }
+        setOutfit(next);
+        onItem?.(ids[0]);
+        setSlotNotification(`Đã nạp sẵn set ${ids.length} món từ Stylist.`);
+        return;
+      }
+    }
+    if (itemId && products[itemId]) {
+      const p = products[itemId];
+      onItem?.(p.id);
+      handleSelectGarment(p);
+    }
+  }, [itemId, itemsParam, products]);
 
-  // Quản lý Camera Stream
+  // Quản lý Camera Stream + kiểm tra độ sáng realtime
   useEffect(() => {
-    if (cameraActive) {
-      navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'user', width: { ideal: 768 }, height: { ideal: 1024 } } })
-        .then(stream => {
-          streamRef.current = stream;
-          if (videoRef.current) videoRef.current.srcObject = stream;
-        })
-        .catch(() => {
-          setCameraActive(false);
-          setStep1Error('Không thể mở máy ảnh. Vui lòng cấp quyền truy cập hoặc tải ảnh từ máy tính.');
-        });
-    } else {
+    if (!cameraActive) {
+      clearInterval(timerRef.current);
+      setCountdown(0);
+      setLightStatus('checking');
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
         streamRef.current = null;
       }
+      return;
     }
+
+    let cancelled = false;
+    navigator.mediaDevices?.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 768 }, height: { ideal: 1024 } }
+    })
+      .then(stream => {
+        if (cancelled) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCameraActive(false);
+          setStep1Error('Không thể mở máy ảnh. Vui lòng cấp quyền truy cập hoặc tải ảnh từ máy tính.');
+        }
+      });
+
+    const probeCanvas = document.createElement('canvas');
+    probeCanvas.width = 64;
+    probeCanvas.height = 64;
+    const probeCtx = probeCanvas.getContext('2d', { willReadFrequently: true });
+    const lightInterval = setInterval(() => {
+      const video = videoRef.current;
+      if (!video || video.readyState < 2) return;
+      probeCtx.drawImage(video, 0, 0, 64, 64);
+      const pixels = probeCtx.getImageData(0, 0, 64, 64).data;
+      let sum = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        sum += 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+      }
+      const avg = sum / (pixels.length / 4);
+      setLightStatus(avg < 55 ? 'low' : 'good');
+    }, 600);
+
     return () => {
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      cancelled = true;
+      clearInterval(lightInterval);
+      clearInterval(timerRef.current);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
     };
   }, [cameraActive]);
 
-  // --- Xử lý tải ảnh từ máy tính ---
   function handleFileUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -88,6 +153,8 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
       setPersonImage(ev.target.result);
       setMattedImage(null);
       setResultImage(null);
+      setResultJobId(null);
+      setIsSaved(false);
       setStep1Status('idle');
       setStep2Status('idle');
       setCameraActive(false);
@@ -96,7 +163,6 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
     e.target.value = '';
   }
 
-  // --- Xử lý chụp ảnh từ Camera ---
   function capturePhoto() {
     if (!videoRef.current) return;
     const video = videoRef.current;
@@ -109,12 +175,29 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
     setPersonImage(dataUrl);
     setMattedImage(null);
     setResultImage(null);
+    setResultJobId(null);
+    setIsSaved(false);
     setStep1Status('idle');
     setStep2Status('idle');
+    setCountdown(0);
     setCameraActive(false);
   }
 
-  // --- BƯỚC 1: Gọi AI Kiểm tra Toàn thân & Tách nền trắng ---
+  function startCountdownCapture(seconds) {
+    clearInterval(timerRef.current);
+    setCountdown(seconds);
+    let left = seconds;
+    timerRef.current = setInterval(() => {
+      left -= 1;
+      if (left <= 0) {
+        clearInterval(timerRef.current);
+        capturePhoto();
+      } else {
+        setCountdown(left);
+      }
+    }, 1000);
+  }
+
   async function runStep1ValidateAndMatting() {
     if (!personImage) {
       setStep1Error('Vui lòng tải ảnh lên hoặc chụp ảnh trước.');
@@ -122,22 +205,29 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
     }
     setStep1Status('validating');
     setStep1Error('');
+    setTryOnWarnings([]);
     try {
-      const res = await api('/ai/validate-and-matting', 'POST', { image: personImage });
+      const payload = { image: personImage };
+      if (framingMode !== 'auto') payload.preferredFraming = framingMode;
+      const res = await api('/ai/validate-and-matting', 'POST', payload);
       if (res.success && res.image) {
         setMattedImage(res.image);
+        setDetectedFraming({
+          framing: res.framing || 'full_body',
+          label: res.framingLabel || 'Toàn thân',
+          supportedSlots: res.supportedSlots || ['top', 'outer', 'bottom', 'dress'],
+        });
         setStep1Status('matted');
-        notify?.('Bước 1 thành công: Đã tách nền trắng chuẩn #FFFFFF.');
+        notify?.(res.message || 'Bước 1 thành công: Đã tách nền trắng chuẩn #FFFFFF.');
       } else {
         throw new Error(res.error || 'Ảnh không đạt tiêu chuẩn.');
       }
     } catch (err) {
       setStep1Status('error');
-      setStep1Error(err.message || 'Ảnh chưa thấy rõ toàn thân. Vui lòng lùi ra xa và chụp lại.');
+      setStep1Error(err.message || 'Chưa nhận diện rõ khuôn mặt trong ảnh. Vui lòng chụp rõ mặt ở nơi đủ sáng.');
     }
   }
 
-  // --- Xử lý chọn món đồ và giải quyết xung đột Slot & Layer ---
   function handleSelectGarment(p) {
     setSlotNotification('');
     const isBlazer = p.cut === 'blazer';
@@ -147,52 +237,45 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
     const isDress = p.category === 'dresses';
 
     setOutfit(prev => {
-      // 1. Nếu là Đầm: thay thế cả Top và Bottom
       if (isDress) {
         if (prev.dress?.id === p.id) return { ...prev, dress: null };
         if (prev.top || prev.bottom) setSlotNotification('Đầm liền đã thay thế áo và quần hiện tại.');
         return { top: null, bottom: null, outer: prev.outer, dress: p };
       }
-
-      // 2. Nếu là Áo trong (Top):
       if (isTop) {
         if (prev.top?.id === p.id) return { ...prev, top: null };
         if (prev.top) setSlotNotification(`Đã đổi sang ${p.name} cho áo trong.`);
         return { ...prev, top: p, dress: null };
       }
-
-      // 3. Nếu là Áo khoác ngoài (Outer - Layer 2):
       if (isOuter) {
         if (prev.outer?.id === p.id) return { ...prev, outer: null };
         if (prev.outer) setSlotNotification(`Đã đổi sang ${p.name} cho áo khoác ngoài.`);
         return { ...prev, outer: p };
       }
-
-      // 4. Nếu là Quần / Váy (Bottom):
       if (isBottom) {
         if (prev.bottom?.id === p.id) return { ...prev, bottom: null };
         if (prev.bottom) setSlotNotification(`Đã đổi sang ${p.name} cho phần thân dưới.`);
         return { ...prev, bottom: p, dress: null };
       }
-
       return prev;
     });
   }
 
-  // Hủy chọn một món đồ
   function removeSlot(slotKey) {
     setOutfit(o => ({ ...o, [slotKey]: null }));
   }
 
-  // Danh sách các món đã chọn
   const selectedItems = [
-    outfit.top && { ...outfit.top, slot: 'top', layer: 1 },
-    outfit.outer && { ...outfit.outer, slot: 'outer', layer: 2 },
     outfit.bottom && { ...outfit.bottom, slot: 'bottom', layer: 1 },
+    outfit.top && { ...outfit.top, slot: 'top', layer: 1 },
     outfit.dress && { ...outfit.dress, slot: 'dress', layer: 1 },
+    outfit.outer && { ...outfit.outer, slot: 'outer', layer: 2 },
   ].filter(Boolean);
 
-  // --- BƯỚC 2: Gọi AI Phối đồ theo Pose & Phân tầng Layering ---
+  function chosenSizeFor(item) {
+    return sizes[item.id] || pickDefaultSize(item, session?.profile);
+  }
+
   async function runStep2TryOn() {
     if (!mattedImage) {
       notify?.('Vui lòng hoàn thành Bước 1 (Kiểm tra & Tách nền) trước.');
@@ -205,11 +288,14 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
 
     setStep2Status('fitting');
     setStep2Error('');
+    setTryOnWarnings([]);
     setIsSaved(false);
+    setResultJobId(null);
 
     try {
       const res = await api('/ai/try-on', 'POST', {
         personImage: mattedImage,
+        framing: detectedFraming?.framing || (framingMode !== 'auto' ? framingMode : undefined),
         items: selectedItems.map(item => ({
           id: item.id,
           name: item.name,
@@ -223,9 +309,11 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
 
       if (res.success && res.image) {
         setResultImage(res.image);
+        setResultJobId(res.jobId || null);
+        setTryOnWarnings(Array.isArray(res.warnings) ? res.warnings : []);
         setStep2Status('completed');
         setViewMode('after');
-        notify?.('Bước 2 thành công: Đã phối đồ AI ôm dáng tự nhiên.');
+        notify?.(res.cached ? 'Đã lấy kết quả phối đồ tức thì từ bộ nhớ đệm.' : 'Bước 2 thành công: Đã phối đồ AI hoàn tất.');
       } else {
         throw new Error(res.error || 'Không thể phối đồ đạt chất lượng yêu cầu.');
       }
@@ -235,7 +323,34 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
     }
   }
 
-  // Tải ảnh kết quả về máy tính
+  async function handleSaveResult() {
+    if (!resultJobId) {
+      setIsSaved(true);
+      notify?.('Đã lưu tạm trong phiên hiện tại.');
+      return;
+    }
+    try {
+      await api(`/try-ons/${resultJobId}`, 'PATCH', {});
+      setIsSaved(true);
+      notify?.(session?.user ? 'Đã lưu kết quả phối đồ vào tài khoản (30 ngày).' : 'Đã lưu kết quả vào lịch sử phiên (24 giờ).');
+    } catch (err) {
+      notify?.(err.message || 'Không thể lưu kết quả lúc này.');
+    }
+  }
+
+  async function openHistory() {
+    setHistory([]);
+    setHistoryLoading(true);
+    try {
+      const res = await api('/try-ons');
+      setHistory(res.items || []);
+    } catch (err) {
+      notify?.(err.message || 'Không thể tải lịch sử phối đồ.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   function downloadResult() {
     const target = resultImage || mattedImage || personImage;
     if (!target) return;
@@ -245,22 +360,58 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
     a.click();
   }
 
-  // Thêm tất cả các món đang thử vào giỏ hàng
-  function handleAddOutfitToCart() {
-    if (selectedItems.length === 0) return;
-    selectedItems.forEach(item => {
-      onCart?.(item);
-    });
-    notify?.(`Đã thêm ${selectedItems.length} món vào giỏ hàng!`);
+  async function handleAddOutfitToCart() {
+    if (selectedItems.length === 0 || addingSet) return;
+    if (!addToCart) {
+      onCart?.(selectedItems[0]);
+      return;
+    }
+    setAddingSet(true);
+    let added = 0;
+    try {
+      for (const item of selectedItems) {
+        await addToCart(item, chosenSizeFor(item));
+        added += 1;
+      }
+      notify?.(`Đã thêm trọn bộ ${added} món vào giỏ hàng!`);
+    } catch (err) {
+      notify?.(err.message || 'Có sản phẩm không đủ tồn kho cho size đã chọn.');
+    } finally {
+      setAddingSet(false);
+    }
   }
 
-  // Lọc danh sách tủ đồ
   const garmentList = Object.values(products).filter(p => {
     if (!tab) return true;
     if (tab === 'outer') return p.cut === 'blazer';
     if (tab === 'tops') return p.category === 'tops' && p.cut !== 'blazer';
     return p.category === tab;
   });
+
+  function renderSlotRow(label, slotKey, item) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', fontSize: '11px', background: '#fff', padding: '5px 8px', borderRadius: '4px' }}>
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <strong>{label}:</strong> {item ? item.name : <em style={{ color: '#999' }}>Chưa chọn</em>}
+        </span>
+        {item && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+            <select
+              aria-label={`Chọn size cho ${item.name}`}
+              value={chosenSizeFor(item)}
+              onChange={e => setSizes(prev => ({ ...prev, [item.id]: e.target.value }))}
+              style={{ fontSize: '10px', padding: '1px 4px', borderRadius: '3px', border: '1px solid var(--line)' }}
+            >
+              {Object.entries(item.stock || {}).map(([sz, qty]) => (
+                <option key={sz} value={sz} disabled={qty <= 0}>{sz}</option>
+              ))}
+            </select>
+            <IconButton label="Bỏ chọn" onClick={() => removeSlot(slotKey)}><Trash2 size={13} /></IconButton>
+          </span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <main className="shell fitting-page">
@@ -278,16 +429,35 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
           <div className="panel-title">
             <span>01</span>
             <Camera size={19} />
-            <h2>Ảnh Toàn Thân</h2>
+            <h2>Ảnh Của Bạn</h2>
           </div>
 
-          <p style={{ fontSize: '11px', color: '#55695d', marginBottom: '10px' }}>
-            Yêu cầu: Thấy rõ từ đầu đến bàn chân, 1 người, đứng thẳng, đủ sáng.
+          <p style={{ fontSize: '11px', color: '#55695d', marginBottom: '8px' }}>
+            Hỗ trợ chụp <strong>toàn thân, nửa người hoặc cận mặt &amp; vai</strong> (bắt buộc thấy rõ khuôn mặt, 1 người, đủ sáng).
           </p>
+
+          {/* Chọn chế độ khung hình */}
+          <div className="tabs" style={{ marginBottom: '10px', gap: '4px', flexWrap: 'wrap' }}>
+            {[
+              ['auto', 'Tự động'],
+              ['full_body', 'Toàn thân'],
+              ['half_body', 'Nửa người'],
+              ['portrait_upper', 'Cận mặt & vai'],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={framingMode === key ? 'current' : ''}
+                style={{ fontSize: '11px', padding: '4px 8px' }}
+                onClick={() => setFramingMode(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
           <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={handleFileUpload} />
 
-          {/* Công cụ Chụp / Tải ảnh */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
             <button className="btn btn-outline" onClick={() => fileInputRef.current?.click()}>
               <Upload size={16} /> Tải ảnh lên
@@ -297,43 +467,80 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
             </button>
           </div>
 
-          {/* Khung Camera trực tiếp với Khung Silhouette Guide */}
           {cameraActive && (
             <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', background: '#000', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
               <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              {/* Silhouette Guide Overlay */}
+
+              {/* Trạng thái ánh sáng realtime */}
               <div style={{
-                position: 'absolute', inset: '10%', border: '2px dashed rgba(255,255,255,0.7)',
-                borderRadius: '50px 50px 10px 10px', pointerEvents: 'none', display: 'flex',
+                position: 'absolute', top: '8px', left: '8px', zIndex: 10,
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                padding: '3px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 600,
+                background: lightStatus === 'low' ? 'rgba(185, 28, 28, 0.85)' : 'rgba(21, 128, 61, 0.85)',
+                color: '#fff'
+              }}>
+                <Sun size={12} />
+                {lightStatus === 'low' ? 'Thiếu sáng — bật thêm đèn' : (lightStatus === 'good' ? 'Ánh sáng tốt ✓' : 'Đang đo sáng...')}
+              </div>
+
+              {/* Silhouette Guide Overlay thích ứng theo chế độ chụp */}
+              <div style={{
+                position: 'absolute',
+                inset: framingMode === 'portrait_upper' ? '14% 16% 10%' : '8%',
+                border: `2px dashed ${lightStatus === 'low' ? 'rgba(248,113,113,0.85)' : 'rgba(255,255,255,0.75)'}`,
+                borderRadius: framingMode === 'portrait_upper' ? '90px 90px 18px 18px' : '50px 50px 10px 10px',
+                pointerEvents: 'none', display: 'flex',
                 flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0'
               }}>
-                <span style={{ background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '10px', padding: '2px 8px', borderRadius: '4px' }}>Đỉnh đầu</span>
-                <span style={{ background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '10px', padding: '2px 8px', borderRadius: '4px' }}>Bàn chân chạm đáy</span>
+                <span style={{ background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '10px', padding: '2px 8px', borderRadius: '4px' }}>
+                  {framingMode === 'portrait_upper' ? 'Khuôn mặt rõ ở giữa khung' : 'Đầu & khuôn mặt rõ trong khung'}
+                </span>
+                <span style={{ background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '10px', padding: '2px 8px', borderRadius: '4px' }}>
+                  {framingMode === 'portrait_upper'
+                    ? 'Lấy rõ cổ & hai bên vai'
+                    : framingMode === 'half_body'
+                      ? 'Lấy từ đầu đến eo / hông'
+                      : 'Toàn thân hoặc nửa người có mặt'}
+                </span>
               </div>
-              <button
-                className="btn btn-primary"
-                style={{ position: 'absolute', bottom: '12px', left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}
-                onClick={capturePhoto}
-              >
-                <Camera size={16} /> Chụp ngay
-              </button>
+
+              {/* Số đếm ngược lớn khi hẹn giờ chụp */}
+              {countdown > 0 && (
+                <div style={{
+                  position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
+                  background: 'rgba(0,0,0,0.35)', color: '#fff', fontSize: '64px', fontWeight: 800, zIndex: 15
+                }}>
+                  {countdown}
+                </div>
+              )}
+
+              {/* Cụm nút chụp ngay & hẹn giờ lùi ra xa */}
+              <div style={{ position: 'absolute', bottom: '10px', left: '8px', right: '8px', display: 'flex', gap: '6px', justifyContent: 'center', zIndex: 20 }}>
+                <button className="btn btn-primary" style={{ padding: '6px 10px', fontSize: '12px' }} onClick={capturePhoto} disabled={countdown > 0}>
+                  <Camera size={14} /> Chụp
+                </button>
+                <button className="btn btn-outline" style={{ padding: '6px 10px', fontSize: '12px', background: 'rgba(255,255,255,0.92)' }} onClick={() => startCountdownCapture(3)} disabled={countdown > 0}>
+                  <Timer size={14} /> 3s
+                </button>
+                <button className="btn btn-outline" style={{ padding: '6px 10px', fontSize: '12px', background: 'rgba(255,255,255,0.92)' }} onClick={() => startCountdownCapture(5)} disabled={countdown > 0}>
+                  <Timer size={14} /> 5s
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Xem trước ảnh đã chọn */}
           {personImage && !cameraActive && (
             <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', background: '#f8f8f8', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px', border: '1px solid var(--line)' }}>
               <img src={mattedImage || personImage} alt="Ảnh người dùng" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               <span className="frame-label" style={{ top: '6px', left: '6px' }}>
-                <span /> {mattedImage ? 'NỀN TRẮNG #FFFFFF' : 'ẢNH GỐC'}
+                <span /> {mattedImage ? `${(detectedFraming?.label || 'NỀN TRẮNG').toUpperCase()} · #FFFFFF` : 'ẢNH GỐC'}
               </span>
-              <IconButton label="Xóa ảnh" style={{ position: 'absolute', top: '6px', right: '6px' }} onClick={() => { setPersonImage(null); setMattedImage(null); setResultImage(null); setStep1Status('idle'); }}>
+              <IconButton label="Xóa ảnh" style={{ position: 'absolute', top: '6px', right: '6px' }} onClick={() => { setPersonImage(null); setMattedImage(null); setDetectedFraming(null); setTryOnWarnings([]); setResultImage(null); setResultJobId(null); setIsSaved(false); setStep1Status('idle'); setStep2Status('idle'); }}>
                 <Trash2 size={16} />
               </IconButton>
             </div>
           )}
 
-          {/* Lỗi Bước 1 */}
           {step1Error && (
             <div style={{ background: '#fdf2f2', border: '1px solid #f8b4b4', color: '#9b1c1c', padding: '8px 10px', borderRadius: '5px', fontSize: '11px', display: 'flex', gap: '6px', alignItems: 'flex-start', marginBottom: '12px' }}>
               <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
@@ -341,7 +548,6 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
             </div>
           )}
 
-          {/* Nút thực thi Bước 1 */}
           <button
             className="btn btn-primary wide"
             disabled={!personImage || step1Status === 'validating' || step1Status === 'matted'}
@@ -377,7 +583,7 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
             </div>
 
             <div className="stage-actions">
-              <IconButton label="Lượt thử đã lưu" onClick={() => setHistory([])}>
+              <IconButton label="Lượt thử đã lưu" onClick={openHistory}>
                 <History size={18} />
               </IconButton>
               <IconButton label="Tải ảnh kết quả" onClick={downloadResult} disabled={!personImage}>
@@ -386,7 +592,6 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
             </div>
           </div>
 
-          {/* Khung hiển thị trung tâm */}
           <div className="model-frame" style={{ position: 'relative', background: '#FFFFFF' }}>
             {!personImage ? (
               <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--muted)', textAlign: 'center', padding: '20px' }}>
@@ -397,14 +602,30 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
                 </div>
               </div>
             ) : viewMode === 'split' && resultImage && mattedImage ? (
-              /* Chế độ Split View (Before / After Slider) */
+              /* Chế độ Split View (Before / After Slider dùng clip-path chồng khít 100%) */
               <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-                <img src={resultImage} alt="Sau" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                <div style={{ position: 'absolute', top: 0, left: 0, width: `${splitPos}%`, height: '100%', overflow: 'hidden', borderRight: '2px solid #fff', boxShadow: '2px 0 10px rgba(0,0,0,0.3)' }}>
-                  <img src={mattedImage} alt="Trước" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                </div>
+                <img
+                  src={resultImage}
+                  alt="Sau khi thử đồ"
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+                <img
+                  src={mattedImage}
+                  alt="Trước khi thử đồ"
+                  style={{
+                    position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain',
+                    clipPath: `inset(0 ${100 - splitPos}% 0 0)`
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute', top: 0, bottom: 0, left: `${splitPos}%`,
+                    width: '2px', background: '#111', boxShadow: '0 0 8px rgba(0,0,0,0.4)', pointerEvents: 'none'
+                  }}
+                />
                 <input
                   type="range"
+                  aria-label="Thanh kéo so sánh trước và sau"
                   min="0"
                   max="100"
                   value={splitPos}
@@ -413,7 +634,6 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
                 />
               </div>
             ) : (
-              /* Chế độ Xem đơn thông thường */
               <img
                 src={viewMode === 'before' ? (mattedImage || personImage) : (resultImage || mattedImage || personImage)}
                 alt="Phối đồ AI"
@@ -421,7 +641,6 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
               />
             )}
 
-            {/* Nhãn góc ảnh */}
             {personImage && (
               <div className="frame-label">
                 <span />
@@ -429,7 +648,6 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
               </div>
             )}
 
-            {/* Trạng thái xử lý AI */}
             {step2Status === 'fitting' && (
               <div className="model-status" role="status">
                 <LoaderCircle size={18} className="spin" />
@@ -437,33 +655,36 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
               </div>
             )}
 
-            {/* Nút lưu kết quả */}
             {resultImage && (
               <IconButton
                 className="save-look"
                 label={isSaved ? 'Đã lưu' : 'Lưu kết quả'}
-                onClick={() => { setIsSaved(true); notify?.('Đã lưu kết quả vào hồ sơ.'); }}
+                onClick={handleSaveResult}
               >
                 <Bookmark size={19} fill={isSaved ? 'currentColor' : 'none'} />
               </IconButton>
             )}
           </div>
 
-          {/* Lỗi Bước 2 */}
           {step2Error && (
             <p className="error stage-error" role="alert">
               {step2Error} <button className="text-button" onClick={runStep2TryOn}>Thử lại</button>
             </p>
           )}
 
-          {/* Thanh tác vụ dưới cùng */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+          {tryOnWarnings.length > 0 && (
+            <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e', padding: '8px 10px', borderRadius: '5px', fontSize: '11px', marginTop: '8px' }}>
+              {tryOnWarnings.map((w, idx) => <div key={idx}>• {w}</div>)}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '12px' }}>
             <p className="stage-caption" style={{ margin: 0 }}>
               AI giữ 100% gương mặt, màu da và bối cảnh trắng. Quần áo ôm theo tư thế tự nhiên.
             </p>
-            {resultImage && (
-              <button className="btn btn-primary" onClick={handleAddOutfitToCart}>
-                <ShoppingBag size={16} /> Thêm cả bộ vào giỏ
+            {selectedItems.length > 0 && (
+              <button className="btn btn-primary" disabled={addingSet} onClick={handleAddOutfitToCart}>
+                <ShoppingBag size={16} /> {addingSet ? 'Đang thêm...' : `Thêm cả bộ (${selectedItems.length})`}
               </button>
             )}
           </div>
@@ -477,48 +698,24 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
             <h2>Tủ Đồ & Phối Lớp</h2>
           </div>
 
-          {/* Tóm tắt các Slot đang chọn */}
           <div style={{ background: '#f4f6f3', border: '1px solid #e1e7dc', borderRadius: '6px', padding: '10px', marginBottom: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: '#394f41', marginBottom: '8px' }}>
               <Layers size={14} /> CÁC MÓN ĐANG PHỐI ({selectedItems.length})
             </div>
 
             <div style={{ display: 'grid', gap: '6px' }}>
-              {/* Slot Top */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', background: '#fff', padding: '4px 8px', borderRadius: '4px' }}>
-                <span><strong>Áo trong:</strong> {outfit.top ? outfit.top.name : <em style={{ color: '#999' }}>Chưa chọn</em>}</span>
-                {outfit.top && <IconButton label="Bỏ chọn" onClick={() => removeSlot('top')}><Trash2 size={13} /></IconButton>}
-              </div>
-
-              {/* Slot Outer (Layer 2) */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', background: '#fff', padding: '4px 8px', borderRadius: '4px' }}>
-                <span><strong>Khoác ngoài:</strong> {outfit.outer ? outfit.outer.name : <em style={{ color: '#999' }}>Chưa chọn</em>}</span>
-                {outfit.outer && <IconButton label="Bỏ chọn" onClick={() => removeSlot('outer')}><Trash2 size={13} /></IconButton>}
-              </div>
-
-              {/* Slot Bottom */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', background: '#fff', padding: '4px 8px', borderRadius: '4px' }}>
-                <span><strong>Quần / Váy:</strong> {outfit.bottom ? outfit.bottom.name : <em style={{ color: '#999' }}>Chưa chọn</em>}</span>
-                {outfit.bottom && <IconButton label="Bỏ chọn" onClick={() => removeSlot('bottom')}><Trash2 size={13} /></IconButton>}
-              </div>
-
-              {/* Slot Dress */}
-              {outfit.dress && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', background: '#fff', padding: '4px 8px', borderRadius: '4px' }}>
-                  <span><strong>Đầm liền:</strong> {outfit.dress.name}</span>
-                  <IconButton label="Bỏ chọn" onClick={() => removeSlot('dress')}><Trash2 size={13} /></IconButton>
-                </div>
-              )}
+              {renderSlotRow('Áo trong', 'top', outfit.top)}
+              {renderSlotRow('Khoác ngoài', 'outer', outfit.outer)}
+              {renderSlotRow('Quần / Váy', 'bottom', outfit.bottom)}
+              {outfit.dress && renderSlotRow('Đầm liền', 'dress', outfit.dress)}
             </div>
 
-            {/* Thông báo xung đột slot */}
             {slotNotification && (
               <p style={{ margin: '6px 0 0', fontSize: '10px', color: '#8d5b20', fontWeight: 600 }}>
                 • {slotNotification}
               </p>
             )}
 
-            {/* Nút kích hoạt Bước 2 */}
             <button
               className="btn btn-primary wide"
               style={{ marginTop: '10px' }}
@@ -533,7 +730,6 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
             </button>
           </div>
 
-          {/* Phân loại danh mục tủ đồ */}
           <div className="wardrobe-tabs tabs">
             {[
               ['', 'Tất cả'],
@@ -552,7 +748,6 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
             ))}
           </div>
 
-          {/* Danh sách sản phẩm để chọn */}
           <div className="wardrobe-list">
             {garmentList.map(p => {
               const isSelected = outfit.top?.id === p.id || outfit.bottom?.id === p.id || outfit.outer?.id === p.id || outfit.dress?.id === p.id;
@@ -575,10 +770,42 @@ export function Fitting({ session, products, itemId, look, navigate, onSession, 
         </section>
       </div>
 
-      {/* Lịch sử đã lưu */}
-      {history && (
-        <Dialog title="Lịch sử phối đồ" close={() => setHistory(null)}>
-          <Empty icon={Bookmark} title="Chưa có lượt thử nào được lưu trong phiên này" />
+      {history !== null && (
+        <Dialog title="Lịch sử phối đồ đã lưu" close={() => setHistory(null)}>
+          {historyLoading ? (
+            <p className="muted" style={{ textAlign: 'center', padding: '16px' }}>Đang tải lịch sử...</p>
+          ) : history.length === 0 ? (
+            <Empty icon={Bookmark} title="Chưa có lượt thử nào được lưu" />
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', maxHeight: '60vh', overflowY: 'auto' }}>
+              {history.map(item => {
+                const names = (item.productIds || [item.productId]).filter(Boolean).map(id => products[id]?.name || id).join(' + ');
+                return (
+                  <button
+                    key={item.jobId}
+                    type="button"
+                    onClick={() => {
+                      if (item.imageUrl) {
+                        setResultImage(item.imageUrl);
+                        setPersonImage(prev => prev || item.imageUrl);
+                        setResultJobId(item.jobId);
+                        setIsSaved(true);
+                        setViewMode('after');
+                      }
+                      setHistory(null);
+                    }}
+                    style={{ textAlign: 'left', border: '1px solid var(--line)', borderRadius: '6px', overflow: 'hidden', background: '#fff', padding: 0, cursor: 'pointer' }}
+                  >
+                    {item.imageUrl && <img src={item.imageUrl} alt={names} style={{ width: '100%', aspectRatio: '3/4', objectFit: 'contain', background: '#fff' }} />}
+                    <div style={{ padding: '6px 8px', fontSize: '11px' }}>
+                      <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{names || 'Bộ phối đồ'}</strong>
+                      <small className="muted">{new Date(item.createdAt).toLocaleString('vi-VN')}</small>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </Dialog>
       )}
     </main>

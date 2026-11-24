@@ -5,3 +5,4 @@ export async function api(path, method='GET', data, signal) {
   return result;
 }
 export const tryUrl = id => '/fitting-room'+(id?'?item_id='+encodeURIComponent(id):'');
+export const trySetUrl = ids => '/fitting-room'+(ids?.length?'?items='+encodeURIComponent(ids.join(',')):'');

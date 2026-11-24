@@ -1,3 +1,5 @@
+import { sizeGuide } from '../shared/contracts/index.mjs';
+
 const rows = [
   ['linen-shirt','Sơ mi linen Mộc','tops','shirt','Trắng ngà','#d1d1c6',489000,'office casual','light medium deep','relaxed','Mới','Linen thoáng, vai thả nhẹ và cổ mở.'],
   ['tailored-trouser','Quần ống suông Atelier','bottoms','pants','Nâu đất','#7f6759',629000,'office formal casual','light medium deep','classic','Bán chạy','Lưng cao, hai ly trước và đường may thẳng.'],
@@ -24,14 +26,19 @@ const rows = [
   ['navy-dress','Đầm quấn Midnight','dresses','wrap','Xanh navy','#768b8e',869000,'office formal casual','light medium deep','classic','Bán chạy','Vạt quấn, đai eo liền.'],
   ['sage-dress','Đầm sơ mi Jardin','dresses','shirtDress','Xanh sage','#9e9a97',699000,'casual office','light medium deep','relaxed','Mới','Đầm sơ mi với hàng cúc dọc.'],
 ];
-const chart = (category, form) => Object.fromEntries(['XS','S','M','L','XL'].map((size, i) => {
+const chart = (category, form) => Object.fromEntries(Object.keys(sizeGuide).map((size, i) => {
   const ease = form === 'relaxed' ? 3 : 0;
-  return [size, { bust: 82 + 4*i + ease + (category === 'tops' ? 1 : 0), waist: 64 + 5*i + ease, hip: 88 + 5*i + ease }];
+  return [size, {
+    ...sizeGuide[size],
+    bust: 82 + 4*i + ease + (category === 'tops' ? 1 : 0),
+    waist: 64 + 5*i + ease,
+    hip: 88 + 5*i + ease,
+  }];
 }));
 export const products = rows.map(([id,name,category,cut,color,hex,price,occasions,tones,form,badge,description], i) => ({
   id, name, category, cut, color, hex, price, occasions: occasions.split(' '), tones: tones.split(' '), form, badge, description,
   image: `/images/products/${id}.webp`, garmentImage: `/images/garments/${id}.png`, imageVersion: '5',
   createdAt: new Date(Date.UTC(2026, 8, 1 + (i < 4 ? 28 - i : i))).toISOString(),
-  stock: { XS: 5, S: 8, M: 9, L: 6, XL: i % 7 === 0 ? 0 : 4 }, sizeChart: chart(category, form),
+  stock: { XS: 5, S: 8, M: 9, L: 6, XL: i % 7 === 0 ? 0 : 4, '2XL': 4, '3XL': 3 }, sizeChart: chart(category, form),
 }));
 export const byId = new Map(products.map(p => [p.id,p]));

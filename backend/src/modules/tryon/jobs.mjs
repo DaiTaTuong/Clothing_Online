@@ -55,7 +55,7 @@ export function createJobs(store) {
   }
   function view(row) {
     const p = JSON.parse(row.payload);
-    return { jobId:row.id, type:row.type, profileVersion:p.profileVersion, productId:p.productId, mode:p.mode,
+    return { jobId:row.id, type:row.type, profileVersion:p.profileVersion ?? 0, productId:p.productId ?? p.productIds?.[0] ?? null, productIds:p.productIds || (p.productId ? [p.productId] : []), mode:p.mode,
       status:row.status, stage:row.status==='failed'?'failed':p.stage, saved:Boolean(p.saved), createdAt:new Date(row.created).toISOString(),
       imageUrl:p.imageId?'/api/media/'+p.imageId:null, error:row.status==='failed' ? p.error || 'Tác vụ đã gián đoạn. Hãy thử lại.' : null };
   }
@@ -132,6 +132,36 @@ export function createJobs(store) {
     });
     return view(job(owner,id));
   }
-  return { create, readMedia, upload, remove, save, view, job, invalidateFace,
+  function findAiCache(owner, cacheKey) {
+    const rows = all("SELECT * FROM jobs WHERE owner=? AND type='try-on' AND cache_key=? AND status='completed' AND expires>? ORDER BY created DESC LIMIT 1", owner, cacheKey, now());
+    const row = rows[0];
+    if (!row) return null;
+    const p = JSON.parse(row.payload);
+    const media = p.imageId ? readMedia(owner, p.imageId) : null;
+    if (!media) return null;
+    return { job: view(row), media, engine: p.engine || 'cache' };
+  }
+  function recordAiTryOn(owner, cacheKey, items, pngBuffer, engine = 'local-2d') {
+    const id = uuid();
+    const productIds = items.map(i => i.id).filter(Boolean);
+    const state = store.state(owner);
+    return store.txn(() => {
+      const media = insert(owner, 'try-on', pngBuffer);
+      const p = {
+        stage: 'ready',
+        profileVersion: state.profileVersion,
+        productId: productIds[0] || null,
+        productIds,
+        mode: 'ai',
+        faceId: null,
+        imageId: media.id,
+        engine,
+        saved: false
+      };
+      run('INSERT INTO jobs VALUES (?,?,?,?,?,?,?,?)', id, owner, 'try-on', cacheKey, 'completed', JSON.stringify(p), now(), now() + day);
+      return { job: view(job(owner, id)), media };
+    });
+  }
+  return { create, readMedia, upload, remove, save, view, job, invalidateFace, findAiCache, recordAiTryOn,
     history:owner=>all("SELECT * FROM jobs WHERE owner=? AND type='try-on' AND status='completed' AND expires>? ORDER BY created DESC LIMIT 80",owner,now()).filter(r=>JSON.parse(r.payload).saved).map(view) };
 }

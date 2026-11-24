@@ -1,0 +1,65 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "FORME Studio - Common Schemas",
+    "version": "2.0.0",
+    "description": "Các lược đồ JSON dùng chung cho toàn bộ 5 phân hệ API theo kiến trúc SOA."
+  },
+  "components": {
+    "securitySchemes": {
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "forme_sid",
+        "description": "Cookie phiên HttpOnly SameSite=Lax do Gateway cấp tự động cho khách hoặc tài khoản đăng nhập."
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["code", "message", "requestId"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "INVALID_PROFILE"
+          },
+          "message": {
+            "type": "string",
+            "example": "Chiều cao phải nằm trong khoảng 145–190."
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "required": ["total", "page"],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "example": 24
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 1
+          }
+        }
+      }
+    }
+  }
+}
