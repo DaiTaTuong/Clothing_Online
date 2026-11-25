@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { byId } from '../../../data/catalog.mjs';
 import { digest, fail } from '../platform/store.mjs';
+import { geminiVirtualTryOn } from '../modules/tryon/providers.mjs';
 
 const SLOT_ORDER = { bottom: 1, top: 2, dress: 3, outer: 4 };
 
@@ -22,24 +23,49 @@ const FRAMING_META = {
 };
 
 function normalizeItems(items) {
-  return items
-    .map(raw => {
-      const fromCatalog = raw.id ? byId.get(raw.id) : null;
-      const cut = raw.cut || fromCatalog?.cut || '';
-      const category = raw.category || fromCatalog?.category || 'tops';
-      const isOuter = cut === 'blazer' || raw.layer_level === 2 || raw.slot === 'outer';
-      const slot = raw.slot || (isOuter ? 'outer' : (category === 'bottoms' ? 'bottom' : (category === 'dresses' ? 'dress' : 'top')));
-      return {
-        id: raw.id || fromCatalog?.id || '',
-        name: raw.name || fromCatalog?.name || '',
-        category,
-        cut,
-        slot,
-        layer_level: isOuter ? 2 : 1,
-        garmentImage: raw.garmentImage || raw.garment_image || fromCatalog?.garmentImage || null,
-      };
-    })
+  const slots = { top: null, bottom: null, outer: null, dress: null };
+  const conflictWarnings = [];
+
+  for (const raw of items) {
+    const fromCatalog = raw.id ? byId.get(raw.id) : null;
+    const cut = raw.cut || fromCatalog?.cut || '';
+    const category = raw.category || fromCatalog?.category || 'tops';
+    const isOuter = cut === 'blazer' || raw.layer_level === 2 || raw.slot === 'outer';
+    const slot = raw.slot || (isOuter ? 'outer' : (category === 'bottoms' ? 'bottom' : (category === 'dresses' ? 'dress' : 'top')));
+    const entry = {
+      id: raw.id || fromCatalog?.id || '',
+      name: raw.name || fromCatalog?.name || '',
+      category,
+      cut,
+      slot,
+      layer_level: isOuter ? 2 : 1,
+      garmentImage: raw.garmentImage || raw.garment_image || fromCatalog?.garmentImage || null,
+    };
+
+    if (slot === 'dress') {
+      if (slots.top || slots.bottom) conflictWarnings.push(`Đầm ${entry.name || entry.id} đã thay thế áo và quần hiện tại.`);
+      if (slots.dress && slots.dress.id !== entry.id) conflictWarnings.push(`Đã thay thế ${slots.dress.name} bằng ${entry.name}.`);
+      slots.top = null;
+      slots.bottom = null;
+      slots.dress = entry;
+    } else if (slot === 'top' || slot === 'bottom') {
+      if (slots.dress) {
+        conflictWarnings.push(`Đã bỏ ${slots.dress.name} để phối cùng ${entry.name}.`);
+        slots.dress = null;
+      }
+      if (slots[slot] && slots[slot].id !== entry.id) conflictWarnings.push(`Đã thay thế ${slots[slot].name} bằng ${entry.name}.`);
+      slots[slot] = entry;
+    } else {
+      if (slots.outer && slots.outer.id !== entry.id) conflictWarnings.push(`Đã thay thế ${slots.outer.name} bằng ${entry.name}.`);
+      slots.outer = entry;
+    }
+  }
+
+  const sortedItems = Object.values(slots)
+    .filter(Boolean)
     .sort((a, b) => (a.layer_level - b.layer_level) || ((SLOT_ORDER[a.slot] || 9) - (SLOT_ORDER[b.slot] || 9)));
+
+  return { sortedItems, conflictWarnings };
 }
 
 /**
@@ -129,33 +155,70 @@ export async function handleAiVisionRoutes(ctx) {
       throw fail(400, 'INVALID_TRYON', 'Thiếu ảnh người mẫu hoặc danh sách trang phục.');
     }
 
-    const sortedItems = normalizeItems(items);
-    const personHash = digest(personImage);
-    const cacheKey = digest(JSON.stringify(['ai-v2.2', framing, personHash, sortedItems.map(i => `${i.id}:${i.layer_level}`)]));
+    const { sortedItems, conflictWarnings } = normalizeItems(items);
+    const supportedSlots = new Set(FRAMING_META[framing].supportedSlots);
+    const frameWarnings = [...conflictWarnings];
+    const fittingItems = [];
+    for (const item of sortedItems) {
+      if (!supportedSlots.has(item.slot)) {
+        frameWarnings.push(`Ảnh đang ở chế độ ${FRAMING_META[framing].label} nên bỏ qua ${item.name || item.slot}. Hãy chụp toàn thân để thử quần/váy.`);
+      } else {
+        fittingItems.push(item);
+      }
+    }
 
-    const hit = jobs.findAiCache(s.owner, cacheKey);
+    const methodMode = data.method === 'gemini' || data.method === 'lora' ? data.method : 'auto';
+    const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY?.trim());
+    const personHash = digest(personImage);
+    const cacheKey = digest(JSON.stringify(['ai-v2.5', methodMode, hasGeminiKey ? 'g1' : 'g0', framing, personHash, fittingItems.map(i => `${i.id}:${i.layer_level}`)]));
+
+    const hit = !data.forceRefresh ? jobs.findAiCache(s.owner, cacheKey) : null;
     if (hit) {
+      const cachedBytes = Buffer.isBuffer(hit.media.data) ? hit.media.data : Buffer.from(hit.media.data);
       json(res, {
         success: true,
         cached: true,
         framing,
-        warnings: [],
+        warnings: frameWarnings,
         jobId: hit.job.jobId,
         imageUrl: hit.job.imageUrl,
-        image: `data:image/png;base64,${hit.media.data.toString('base64')}`,
+        image: `data:image/png;base64,${cachedBytes.toString('base64')}`,
         engine: hit.engine,
         message: 'Lấy kết quả phối đồ tức thì từ bộ nhớ đệm.',
       });
       return true;
     }
 
+    // PHƯƠNG PHÁP 2: Sử dụng trực tiếp Google Gemini Multimodal API (Thay thế Train LoRA)
+    if (hasGeminiKey && methodMode !== 'lora' && fittingItems.length > 0) {
+      const base64Data = personImage.replace(/^data:image\/\w+;base64,/, '');
+      const personBuffer = Buffer.from(base64Data, 'base64');
+      const geminiResult = await geminiVirtualTryOn(personBuffer, fittingItems, framing, root);
+      if (geminiResult) {
+        const saved = jobs.recordAiTryOn(s.owner, cacheKey, fittingItems, geminiResult.buffer, geminiResult.engine);
+        json(res, {
+          success: true,
+          cached: false,
+          framing,
+          warnings: frameWarnings,
+          jobId: saved.job.jobId,
+          imageUrl: saved.job.imageUrl,
+          image: `data:image/png;base64,${geminiResult.buffer.toString('base64')}`,
+          engine: geminiResult.engine,
+          message: 'Phối đồ AI bằng Google Gemini hoàn tất.',
+        });
+        return true;
+      }
+    }
+
+    // PHƯƠNG PHÁP 1: Gọi sang AI Microservice (FastAPI: Gemini / Diffusers LoRA / Pose-Guided)
     if (process.env.AI_SERVICE_URL) {
       try {
         const aiRes = await fetch(`${process.env.AI_SERVICE_URL.replace(/\/$/, '')}/api/ai/try-on`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ person_image: personImage, garments: sortedItems, framing }),
-          signal: AbortSignal.timeout(35000),
+          body: JSON.stringify({ person_image: personImage, garments: sortedItems, framing, method: methodMode }),
+          signal: AbortSignal.timeout(45000),
         });
         const result = await aiRes.json();
         if (aiRes.ok && result.success && result.image) {
@@ -163,6 +226,7 @@ export async function handleAiVisionRoutes(ctx) {
           const saved = jobs.recordAiTryOn(s.owner, cacheKey, sortedItems, outBuf, result.engine || 'ai-service');
           json(res, {
             ...result,
+            warnings: [...conflictWarnings, ...(Array.isArray(result.warnings) ? result.warnings : [])],
             cached: false,
             jobId: saved.job.jobId,
             imageUrl: saved.job.imageUrl,
@@ -181,7 +245,7 @@ export async function handleAiVisionRoutes(ctx) {
       const mw = baseMeta.width || 768;
       const mh = baseMeta.height || 1024;
       const supportedSlots = new Set(FRAMING_META[framing].supportedSlots);
-      const warnings = [];
+      const warnings = [...conflictWarnings];
 
       for (const item of sortedItems) {
         if (!supportedSlots.has(item.slot)) {
@@ -204,16 +268,26 @@ export async function handleAiVisionRoutes(ctx) {
             pasteX = Math.round(mw * 0.5 - targetW * 0.5);
             pasteY = Math.round(mh * 0.72);
           } else if (framing === 'half_body') {
-            const widthRatio = (item.cut === 'blazer' || item.layer_level === 2) ? 0.58 : 0.50;
+            const widthRatio = (item.cut === 'blazer' || item.layer_level === 2) ? 0.58 : (item.category === 'dresses' ? 0.54 : 0.50);
             targetW = Math.round(mw * widthRatio);
             targetH = Math.round(targetW * aspect);
             pasteX = Math.round(mw * 0.5 - targetW * 0.5);
-            pasteY = Math.round(mh * 0.52);
+            pasteY = Math.round(mh * (item.category === 'dresses' ? 0.48 : 0.52));
           } else if (item.category === 'bottoms') {
             targetW = Math.round(mw * 0.40);
             targetH = Math.round(targetW * aspect);
             pasteX = Math.round(mw * 0.5 - targetW * 0.5);
             pasteY = Math.round(mh * 0.42);
+          } else if (item.category === 'dresses') {
+            targetW = Math.round(mw * 0.48);
+            targetH = Math.round(targetW * aspect);
+            const maxH = Math.round(mh * 0.62);
+            if (targetH > maxH) {
+              targetH = maxH;
+              targetW = Math.round(targetH / Math.max(0.2, aspect));
+            }
+            pasteX = Math.round(mw * 0.5 - targetW * 0.5);
+            pasteY = Math.round(mh * 0.20);
           } else if (item.cut === 'blazer' || item.layer_level === 2) {
             targetW = Math.round(mw * 0.54);
             targetH = Math.round(targetW * aspect);

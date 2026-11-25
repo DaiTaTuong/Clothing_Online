@@ -218,6 +218,7 @@ test('SOA 5 Services: Identity, Catalog/Cart, Stylist/Layering, Media/Jobs & AI 
     assert.equal(second.status, 200);
     assert.equal(second.data.cached, true);
     assert.equal(second.data.jobId, first.data.jobId);
+    assert.equal(second.data.image, first.data.image, 'Cached image base64 must be valid and identical to first try-on');
 
     const saved = await client(`/api/try-ons/${first.data.jobId}`, 'PATCH', {});
     assert.equal(saved.status, 200);

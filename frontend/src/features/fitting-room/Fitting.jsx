@@ -14,7 +14,7 @@ function pickDefaultSize(product, profile) {
   return Object.entries(product.stock || {}).find(([, qty]) => qty > 0)?.[0] || 'M';
 }
 
-export function Fitting({ session, products, itemId, itemsParam, navigate, onCart, addToCart, notify, onItem }) {
+export function Fitting({ session, products, itemId, itemsParam, look, navigate, onCart, addToCart, notify, onItem }) {
   // --- 1. State Quản lý Ảnh Người dùng & Bước 1 (Kiểm tra & Tách nền) ---
   const [personImage, setPersonImage] = useState(null);
   const [mattedImage, setMattedImage] = useState(null);
@@ -39,6 +39,8 @@ export function Fitting({ session, products, itemId, itemsParam, navigate, onCar
   // --- 3. State Quản lý Bước 2 (Phối đồ AI, Lưu & Lịch sử) ---
   const [resultImage, setResultImage] = useState(null);
   const [resultJobId, setResultJobId] = useState(null);
+  const [resultEngine, setResultEngine] = useState('');
+  const [tryOnMethod, setTryOnMethod] = useState('auto'); // 'auto' | 'gemini' | 'lora'
   const [step2Status, setStep2Status] = useState('idle'); // 'idle' | 'fitting' | 'completed' | 'error'
   const [step2Error, setStep2Error] = useState('');
   const [viewMode, setViewMode] = useState('after'); // 'before' | 'after' | 'split'
@@ -49,23 +51,62 @@ export function Fitting({ session, products, itemId, itemsParam, navigate, onCar
   const [isSaved, setIsSaved] = useState(false);
   const [addingSet, setAddingSet] = useState(false);
 
-  // Đồng bộ ?item_id=... hoặc ?items=id1,id2 từ URL (Shop / Chatbot "Phối cả set này")
+  // Đồng bộ ?item_id=..., ?items=id1,id2 hoặc ?look=jobId từ URL (Shop / Chatbot / Tài khoản)
   useEffect(() => {
     if (!products || Object.keys(products).length === 0) return;
+
+    function applyProductIdsToSlots(ids, customNotice = '') {
+      const validIds = ids.filter(id => products[id]);
+      if (validIds.length === 0) return;
+      api('/stylist/validate-outfit', 'POST', { productIds: validIds })
+        .then(res => {
+          const next = { top: null, bottom: null, outer: null, dress: null };
+          for (const item of res.orderedItems || []) {
+            if (products[item.id] && item.slot in next) next[item.slot] = products[item.id];
+          }
+          setOutfit(next);
+          onItem?.(validIds[0]);
+          if (customNotice) setSlotNotification(customNotice);
+          else if (res.notifications?.length) setSlotNotification(res.notifications.at(-1));
+        })
+        .catch(() => {
+          const next = { top: null, bottom: null, outer: null, dress: null };
+          for (const id of validIds) {
+            const p = products[id];
+            if (p.category === 'dresses') { next.top = null; next.bottom = null; next.dress = p; }
+            else if (p.cut === 'blazer') next.outer = p;
+            else if (p.category === 'bottoms') { next.bottom = p; next.dress = null; }
+            else { next.top = p; next.dress = null; }
+          }
+          setOutfit(next);
+          onItem?.(validIds[0]);
+          if (customNotice) setSlotNotification(customNotice);
+        });
+    }
+
+    if (look) {
+      api('/jobs/' + encodeURIComponent(look))
+        .then(job => {
+          if (job?.imageUrl) {
+            setResultImage(job.imageUrl);
+            setPersonImage(prev => prev || job.imageUrl);
+            setResultJobId(job.jobId);
+            setIsSaved(Boolean(job.saved));
+            setStep2Status('completed');
+            setViewMode('after');
+          }
+          const jobProducts = (job?.productIds?.length ? job.productIds : (job?.productId ? [job.productId] : []));
+          if (jobProducts.length > 0) {
+            applyProductIdsToSlots(jobProducts, `Đã nạp lại bộ phối đã lưu (${jobProducts.length} món).`);
+          }
+        })
+        .catch(() => {});
+    }
+
     if (itemsParam) {
       const ids = itemsParam.split(',').map(s => s.trim()).filter(id => products[id]);
       if (ids.length > 0) {
-        const next = { top: null, bottom: null, outer: null, dress: null };
-        for (const id of ids) {
-          const p = products[id];
-          if (p.category === 'dresses') { next.top = null; next.bottom = null; next.dress = p; }
-          else if (p.cut === 'blazer') next.outer = p;
-          else if (p.category === 'bottoms') { next.bottom = p; next.dress = null; }
-          else { next.top = p; next.dress = null; }
-        }
-        setOutfit(next);
-        onItem?.(ids[0]);
-        setSlotNotification(`Đã nạp sẵn set ${ids.length} món từ Stylist.`);
+        applyProductIdsToSlots(ids, `Đã nạp sẵn set ${ids.length} món từ Stylist.`);
         return;
       }
     }
@@ -74,7 +115,7 @@ export function Fitting({ session, products, itemId, itemsParam, navigate, onCar
       onItem?.(p.id);
       handleSelectGarment(p);
     }
-  }, [itemId, itemsParam, products]);
+  }, [itemId, itemsParam, look, products]);
 
   // Quản lý Camera Stream + kiểm tra độ sáng realtime
   useEffect(() => {
@@ -244,7 +285,8 @@ export function Fitting({ session, products, itemId, itemsParam, navigate, onCar
       }
       if (isTop) {
         if (prev.top?.id === p.id) return { ...prev, top: null };
-        if (prev.top) setSlotNotification(`Đã đổi sang ${p.name} cho áo trong.`);
+        if (prev.dress) setSlotNotification(`Đã bỏ ${prev.dress.name} để phối cùng ${p.name}.`);
+        else if (prev.top) setSlotNotification(`Đã đổi sang ${p.name} cho áo trong.`);
         return { ...prev, top: p, dress: null };
       }
       if (isOuter) {
@@ -254,7 +296,8 @@ export function Fitting({ session, products, itemId, itemsParam, navigate, onCar
       }
       if (isBottom) {
         if (prev.bottom?.id === p.id) return { ...prev, bottom: null };
-        if (prev.bottom) setSlotNotification(`Đã đổi sang ${p.name} cho phần thân dưới.`);
+        if (prev.dress) setSlotNotification(`Đã bỏ ${prev.dress.name} để phối cùng ${p.name}.`);
+        else if (prev.bottom) setSlotNotification(`Đã đổi sang ${p.name} cho phần thân dưới.`);
         return { ...prev, bottom: p, dress: null };
       }
       return prev;
@@ -295,6 +338,7 @@ export function Fitting({ session, products, itemId, itemsParam, navigate, onCar
     try {
       const res = await api('/ai/try-on', 'POST', {
         personImage: mattedImage,
+        method: tryOnMethod,
         framing: detectedFraming?.framing || (framingMode !== 'auto' ? framingMode : undefined),
         items: selectedItems.map(item => ({
           id: item.id,
@@ -310,10 +354,11 @@ export function Fitting({ session, products, itemId, itemsParam, navigate, onCar
       if (res.success && res.image) {
         setResultImage(res.image);
         setResultJobId(res.jobId || null);
+        setResultEngine(res.engine || '');
         setTryOnWarnings(Array.isArray(res.warnings) ? res.warnings : []);
         setStep2Status('completed');
         setViewMode('after');
-        notify?.(res.cached ? 'Đã lấy kết quả phối đồ tức thì từ bộ nhớ đệm.' : 'Bước 2 thành công: Đã phối đồ AI hoàn tất.');
+        notify?.(res.cached ? 'Đã lấy kết quả phối đồ tức thì từ bộ nhớ đệm.' : `Bước 2 thành công (${res.engine || 'AI'}): Đã phối đồ hoàn tất.`);
       } else {
         throw new Error(res.error || 'Không thể phối đồ đạt chất lượng yêu cầu.');
       }
@@ -449,7 +494,12 @@ export function Fitting({ session, products, itemId, itemsParam, navigate, onCar
                 type="button"
                 className={framingMode === key ? 'current' : ''}
                 style={{ fontSize: '11px', padding: '4px 8px' }}
-                onClick={() => setFramingMode(key)}
+                onClick={() => {
+                  setFramingMode(key);
+                  if (step1Status === 'matted' || step1Status === 'error') {
+                    setStep1Status('idle');
+                  }
+                }}
               >
                 {label}
               </button>
@@ -644,7 +694,9 @@ export function Fitting({ session, products, itemId, itemsParam, navigate, onCar
             {personImage && (
               <div className="frame-label">
                 <span />
-                {viewMode === 'before' ? 'ẢNH NỀN TRẮNG (BƯỚC 1)' : (resultImage ? 'KẾT QUẢ AI VTO (BƯỚC 2)' : 'CHỜ PHỐI ĐỒ')}
+                {viewMode === 'before'
+                  ? 'ẢNH NỀN TRẮNG (BƯỚC 1)'
+                  : (resultImage ? `KẾT QUẢ AI VTO · ${(resultEngine || 'BƯỚC 2').toUpperCase()}` : 'CHỜ PHỐI ĐỒ')}
               </div>
             )}
 
@@ -715,6 +767,29 @@ export function Fitting({ session, products, itemId, itemsParam, navigate, onCar
                 • {slotNotification}
               </p>
             )}
+
+            <div style={{ marginTop: '8px' }}>
+              <small style={{ display: 'block', fontSize: '10px', color: '#55695d', fontWeight: 600, marginBottom: '4px' }}>
+                PHƯƠNG PHÁP PHỐI ĐỒ AI (BƯỚC 2):
+              </small>
+              <div className="tabs" style={{ gap: '4px', flexWrap: 'wrap' }}>
+                {[
+                  ['auto', 'Tự động (Ưu tiên Gemini)'],
+                  ['gemini', 'PP2: Gemini API'],
+                  ['lora', 'PP1: Local / LoRA'],
+                ].map(([mKey, mLabel]) => (
+                  <button
+                    key={mKey}
+                    type="button"
+                    className={tryOnMethod === mKey ? 'current' : ''}
+                    style={{ fontSize: '10px', padding: '3px 7px' }}
+                    onClick={() => setTryOnMethod(mKey)}
+                  >
+                    {mLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <button
               className="btn btn-primary wide"

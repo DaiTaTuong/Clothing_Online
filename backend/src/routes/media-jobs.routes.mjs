@@ -23,7 +23,7 @@ export async function handleMediaJobsRoutes(ctx) {
       const image = jobs.readMedia(s.owner, id);
       if (!image) throw fail(404, 'NOT_FOUND', 'Không tìm thấy ảnh.');
       res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'private, no-store' });
-      res.end(image.data);
+      res.end(Buffer.isBuffer(image.data) ? image.data : Buffer.from(image.data));
       return true;
     }
   }
