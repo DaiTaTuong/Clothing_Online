@@ -89,37 +89,37 @@
 Thành viên **Nguyễn Phúc Thành** tự tay thiết kế và lập trình giao diện Phòng thử đồ từ đầu tại thư mục `frontend/src/features/fitting-room/`.
 
 #### 1. Cấu trúc Layout 3 Cột (3-Column Layout)
-* **Cột 1: Tủ đồ & Bộ chọn Slot (Slot Selector Panel)**:
-  * Hiển thị các ô slot trực quan: `Top` (Áo thun/sơ mi), `Bottom` (Quần/Váy), `Outer` (Áo khoác), `Shoes` (Giày), `Accessory` (Phụ kiện).
-  * Danh sách đồ lấy từ catalog, người dùng nhấp chọn để gán vào slot; nếu chọn trùng nhóm slot (vd: 2 quần) sẽ tự động ghi đè và báo hiệu nhẹ.
-* **Cột 2: Khung hình Trung tâm & Trình diễn (Canvas Stage)**:
-  * Tích hợp **Camera Silhouette Guide**: Khi bật webcam/camera điện thoại, hiển thị khung viền mờ dáng người đứng thẳng giúp người dùng căn trọn vẹn từ đỉnh đầu đến gót chân.
-  * Hiển thị thanh tiến trình 2 bước: `[1] Đang tách nền trắng...` → `[2] Đang uốn nếp phối đồ...`.
-  * Bộ công cụ so sánh **Before / After** (dạng thanh trượt kéo ngang hoặc chuyển đổi tab xem ảnh gốc vs ảnh đã thử đồ).
-* **Cột 3: Bảng điều khiển & Hành động (Action Panel)**:
-  * Nút tải ảnh lên từ máy tính hoặc chụp từ camera.
-  * Danh sách tóm tắt các món đồ đang mặc thử kèm giá và bảng chọn size.
-  * Nút bấm: *"Bắt đầu phối đồ AI"*, *"Thêm cả set này vào giỏ hàng"*, *"Tải ảnh kết quả"*.
+* **Cột 1: Ảnh Người Dùng, Camera Guide & Bước 1 (`fit-profile`)**:
+  * Hỗ trợ 3 chế độ khung hình có khuôn mặt: `Toàn thân (full_body)`, `Nửa người (half_body)`, `Cận mặt & vai (portrait_upper)` hoặc `Tự động (auto)`.
+  * Tích hợp **Camera Silhouette Guide**, đo ánh sáng realtime và hẹn giờ đếm ngược `3s / 5s` để người dùng kịp đứng vào khung hình.
+  * Nút bấm *"Bước 1: Kiểm tra & Tách nền"* chuẩn hóa ảnh về nền trắng thuần `#FFFFFF` (`768×1024`).
+* **Cột 2: Khung hình Trung tâm & Trình diễn (`fit-stage`)**:
+  * Bộ công cụ so sánh **Before / After** (`Trước (Gốc)`, `Sau (Thử đồ)`, và thanh kéo `So sánh` dùng `clip-path` chồng khít 100%).
+  * Các nút chức năng: *"Lưu kết quả"*, *"Lịch sử phối đồ đã lưu"*, *"Tải ảnh kết quả"* và *"Thêm cả bộ vào giỏ"*.
+* **Cột 3: Tủ đồ & Quản lý Slot / Phối lớp (`fit-wardrobe`)**:
+  * Hiển thị 4 ô slot trực quan kèm chọn size: `Áo trong (top)`, `Khoác ngoài (outer)`, `Quần / Váy (bottom)`, `Đầm liền (dress)`.
+  * Danh sách 24 sản phẩm từ `data/catalog.mjs`; khi chọn trùng slot hoặc chuyển đổi giữa Đầm và Áo/Quần sẽ tự động giải quyết xung đột và báo hiệu rõ ràng.
+  * Nút bấm *"Bước 2: Bắt đầu phối đồ AI"*.
 
 #### 2. Máy trạng thái giao diện (State Machine Diagram)
 ```text
 [Khởi tạo: Chưa có ảnh]
-         │ (Bấm "Tải ảnh" hoặc "Bật Camera")
+         │ (Bấm "Tải ảnh" hoặc "Bật Camera + Hẹn giờ 3s/5s")
          ▼
-[Chụp/Chọn ảnh] ──► [Kiểm tra kích thước Client-side]
+[Chụp/Chọn ảnh] ──► [Chọn khung hình: Tự động / Toàn thân / Nửa người / Cận vai]
                             │
-                            ▼ (Ảnh hợp lệ)
+                            ▼ (Bấm "Bước 1: Kiểm tra & Tách nền")
                  [Gửi sang Backend: Bước 1]
                             │
             ┌───────────────┴───────────────┐
-            ▼ (Thành công)                  ▼ (Lỗi: Thiếu chân/đầu/mờ)
-   [Hiển thị ảnh nền trắng]        [Hiển thị Toast lỗi tiếng Việt]
-            │                              └──► (Yêu cầu chụp lại)
-            ▼ (Chọn đồ & Bấm "Thử đồ")
-   [Gửi sang Backend: Bước 2]
+            ▼ (Thành công: 1 người + rõ mặt) ▼ (Lỗi: Thiếu mặt/nhiều người/mờ/tối)
+   [Hiển thị ảnh nền trắng #FFFFFF] [Hiển thị thông báo lỗi tiếng Việt]
+            │                              └──► (Yêu cầu chụp/chọn lại)
+            ▼ (Chọn đồ theo Slot & Bấm "Bước 2: Bắt đầu phối đồ AI")
+   [Gửi sang Backend: Bước 2 (Kèm kiểm tra Cache Hash)]
             │
             ▼ (Hoàn tất)
-   [Hiển thị kết quả Before/After] ──► [Thêm vào giỏ / Tải về]
+   [Hiển thị kết quả Before/After] ──► [Lưu lịch sử / Thêm cả bộ vào giỏ / Tải về]
 ```
 
 ---
@@ -128,162 +128,164 @@ Thành viên **Nguyễn Phúc Thành** tự tay thiết kế và lập trình gi
 
 Thành viên **Doãn Duy Lợi** tự tay thiết kế kiến trúc Backend Gateway tại `backend/src/`.
 
-#### 1. Lược đồ Cơ sở Dữ liệu Quan hệ (Relational DB Schema)
+#### 1. Lược đồ Cơ sở Dữ liệu SQLite (`backend/src/platform/store.mjs`)
 ```sql
--- 1. Bảng Người dùng & Phiên
-CREATE TABLE users (
-    id VARCHAR(36) PRIMARY KEY,
-    email VARCHAR(255) UNIQUE,
-    password_hash VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+PRAGMA journal_mode = WAL;
+
+-- 1. Bảng Tài khoản Người dùng & Quản trị
+CREATE TABLE IF NOT EXISTS accounts (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    password TEXT NOT NULL,            -- scrypt salt:hash
+    role TEXT NOT NULL                 -- 'member' | 'admin'
 );
 
-CREATE TABLE sessions (
-    id VARCHAR(64) PRIMARY KEY,
-    user_id VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
-    is_guest BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP
+-- 2. Bảng Phiên (Guest g:<uuid> & Member u:<userId>)
+CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,            -- SHA-256 hash của cookie forme_sid
+    owner TEXT NOT NULL,
+    user_id TEXT,
+    expires INTEGER NOT NULL
 );
 
--- 2. Bảng Danh mục Sản phẩm Thời trang
-CREATE TABLE products (
-    id VARCHAR(36) PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    category VARCHAR(50) NOT NULL,     -- 'tops', 'bottoms', 'outerwear', 'shoes'
-    slot VARCHAR(50) NOT NULL,         -- 'top', 'bottom', 'outer', 'shoes'
-    layer_level INT DEFAULT 1,         -- 1: Trong (T-shirt), 2: Ngoài (Blazer)
-    price DECIMAL(12, 2) NOT NULL,
-    sizes JSON,                        -- ["S", "M", "L", "XL"]
-    image_flat_url TEXT NOT NULL,      -- Ảnh chụp phẳng để thử AI
-    image_model_url TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- 3. Bảng Trạng thái Phiên (Hồ sơ vóc dáng, Giỏ hàng, Hội thoại Stylist)
+CREATE TABLE IF NOT EXISTS states (
+    owner TEXT PRIMARY KEY,
+    value TEXT NOT NULL,               -- JSON { profile, profileVersion, faceId, cart, messages, conversationId }
+    updated INTEGER NOT NULL
 );
 
--- 3. Bảng Tác vụ Thử đồ & Quản lý Ảnh (TTL 24h)
-CREATE TABLE tryon_jobs (
-    id VARCHAR(36) PRIMARY KEY,
-    session_id VARCHAR(64) REFERENCES sessions(id) ON DELETE CASCADE,
-    original_image_path TEXT NOT NULL,
-    matted_image_path TEXT,            -- Kết quả Bước 1 (nền trắng #FFFFFF)
-    result_image_path TEXT,            -- Kết quả Bước 2
-    selected_product_ids JSON NOT NULL,-- ["prod_01", "prod_02"]
-    status VARCHAR(20) DEFAULT 'queued',-- 'queued','matting','fitting','completed','failed'
-    error_message TEXT,
-    cache_hash VARCHAR(64),            -- Hash kiểm tra trùng kết quả
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ttl_expires_at TIMESTAMP NOT NULL  -- Mặc định created_at + 24 hours
+-- 4. Bảng Lưu trữ Ảnh Nhị phân Tạm thời (TTL 24h cho khách, 30 ngày khi user lưu)
+CREATE TABLE IF NOT EXISTS media (
+    id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    kind TEXT NOT NULL,                -- 'face' | 'avatar' | 'try-on'
+    data BLOB NOT NULL,
+    hash TEXT NOT NULL,
+    expires INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS media_exp ON media(expires);
 
--- 4. Bảng Giỏ hàng
-CREATE TABLE cart_items (
-    id VARCHAR(36) PRIMARY KEY,
-    session_id VARCHAR(64) REFERENCES sessions(id) ON DELETE CASCADE,
-    product_id VARCHAR(36) REFERENCES products(id),
-    size VARCHAR(10) NOT NULL,
-    quantity INT DEFAULT 1,
-    outfit_group_id VARCHAR(36)        -- Đánh dấu các món thuộc cùng 1 set phối
+-- 5. Bảng Tác vụ Thử đồ & Bộ nhớ đệm Cache Hash (TTL 24h)
+CREATE TABLE IF NOT EXISTS jobs (
+    id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    type TEXT NOT NULL,                -- 'avatar' | 'try-on'
+    cache_key TEXT NOT NULL,           -- SHA-256 hash chống chạy lặp lại cùng bộ phối
+    status TEXT NOT NULL,              -- 'queued' | 'processing' | 'completed' | 'failed'
+    payload TEXT NOT NULL,             -- JSON { stage, profileVersion, productId, productIds, mode, imageId, saved, engine }
+    created INTEGER NOT NULL,
+    expires INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS jobs_cache ON jobs(owner, type, cache_key, created);
+
+-- 6. Bảng Định mức Sử dụng AI Theo Ngày
+CREATE TABLE IF NOT EXISTS usage (
+    date TEXT PRIMARY KEY,
+    count INTEGER NOT NULL
 );
 ```
 
 #### 2. Cơ chế Bảo mật Dữ liệu & Tự động Xóa ảnh sau 24h (Privacy Engine)
-* Mọi ảnh người dùng tải lên được gán `ttl_expires_at = NOW() + INTERVAL '24 HOURS'`.
-* Thiết lập một Cron Job (chạy mỗi 30 phút một lần):
+* Mọi ảnh và lượt thử đồ của phiên khách được gán thời hạn `expires = now() + 86400000` (24 giờ). Khi người dùng đăng nhập và bấm **Lưu kết quả**, thời hạn được gia hạn lên 30 ngày.
+* Định kỳ mỗi 60 giây, tiến trình `store.sweep()` tự động chạy trong transaction để thu hồi toàn bộ phiên, trạng thái khách, ảnh BLOB và jobs đã hết hạn:
   ```javascript
-  // Pseudocode Cron Job xóa ảnh
-  const expiredJobs = await db.query("SELECT * FROM tryon_jobs WHERE ttl_expires_at < NOW()");
-  for (const job of expiredJobs) {
-      fs.unlinkSync(job.original_image_path);
-      if (job.matted_image_path) fs.unlinkSync(job.matted_image_path);
-      if (job.result_image_path) fs.unlinkSync(job.result_image_path);
-  }
-  await db.query("DELETE FROM tryon_jobs WHERE ttl_expires_at < NOW()");
+  const sweep = () => txn(() => {
+    run('DELETE FROM sessions WHERE expires<=?', now());
+    run("DELETE FROM states WHERE owner LIKE 'g:%' AND owner NOT IN (SELECT owner FROM sessions)");
+    run('DELETE FROM media WHERE expires<=?', now());
+    run('DELETE FROM jobs WHERE expires<=?', now());
+  });
   ```
 
-#### 3. Reverse Proxy & Hàng đợi Điều phối sang PC của Trí
+#### 3. Reverse Proxy & Bộ nhớ đệm Điều phối sang PC của Trí
 * Gateway đóng vai trò điều phối tác vụ (Task Dispatcher).
-* Khi nhận request tạo job, Gateway tính toán `cache_hash = MD5(session_id + matted_img_hash + sorted_product_ids)`:
-  * Nếu hash đã tồn tại trong DB và còn hạn → Trả ngay kết quả `result_image_path` trong 0.2s.
-  * Nếu chưa có → Đưa vào queue và gọi sang URL của AI Microservice (`http://192.168.x.x:5001` hoặc `https://tri-pc.trycloudflare.com`).
+* Khi nhận request `POST /api/ai/try-on`, Gateway chuẩn hóa danh sách món đồ và tính `cacheKey = SHA256(['ai-v2.2', framing, SHA256(personImage), sortedItems])`:
+  * Nếu `cacheKey` đã tồn tại trong bảng `jobs` của `owner` và còn hạn → Trả ngay kết quả `cached: true` cùng ảnh PNG từ bảng `media` trong `< 0.1s`.
+  * Nếu chưa có → Gửi sang `AI_SERVICE_URL` (`http://192.168.x.x:5001`) hoặc tự động fallback sang bộ ghép phân tầng 2D tại Gateway khi AI Microservice offline, sau đó lưu vào `media` + `jobs`.
 
 ---
 
 ### 1.4. Thiết kế Cơ bản: AI Stylist & Thuật toán Phân tầng Layering (Hoàng Lâm Tùng)
 
-Thành viên **Hoàng Lâm Tùng** tự tay thiết kế và lập trình module Stylist tại `backend/src/modules/stylist/`.
+Thành viên **Hoàng Lâm Tùng** tự tay thiết kế và lập trình module Stylist tại `backend/src/modules/stylist/` và `backend/src/routes/stylist.routes.mjs`.
 
-#### 1. Chuẩn hóa Bộ Dataset 24 Sản phẩm của Shop
-Tùng thu thập, chuẩn hóa ảnh và biên soạn tệp metadata `data/products_dataset.json`:
-* 24 sản phẩm phân bổ đều: 6 Áo trong (`top`), 4 Áo khoác ngoài (`outer`), 6 Quần/Váy (`bottom`), 4 Giày (`shoes`), 4 Phụ kiện.
-* Mỗi sản phẩm có đầy đủ: Ảnh phẳng nền trong suốt/trắng, ảnh người mẫu mặc tham chiếu, mặt nạ nhị phân vùng áo (mask), và một đoạn mô tả chi tiết (dense prompt) để bạn Trí dùng train LoRA.
+#### 1. Chuẩn hóa Bộ Dataset 24 Sản phẩm của Shop (`data/catalog.mjs`)
+Tùng thu thập, chuẩn hóa ảnh và biên soạn danh mục 24 sản phẩm trong `data/catalog.mjs` cùng bộ ảnh tách nền trong suốt tại `frontend/public/images/garments/*.png`:
+* 24 sản phẩm chia đều thành 3 nhóm danh mục (`8 tops`, `8 bottoms`, `8 dresses`), ánh xạ vào 4 slot phối đồ:
+  * **7 Áo trong (`slot: 'top'`, `layer_level: 1`)**: Sơ mi, áo thun, áo dệt kim, áo sát nách.
+  * **1 Áo khoác ngoài (`slot: 'outer'`, `layer_level: 2`)**: Blazer cổ ve Muse (`cut: 'blazer'`).
+  * **8 Quần & Chân váy (`slot: 'bottom'`, `layer_level: 1`)**: Quần ống suông, quần tây, quần jeans, quần shorts, chân váy chữ A / midi.
+  * **8 Đầm liền (`slot: 'dress'`, `layer_level: 1`)**: Đầm midi, đầm hai dây, đầm cổ V, đầm sơ mi, đầm quấn.
+* Mỗi sản phẩm có đầy đủ: Ảnh sản phẩm WebP, ảnh garment PNG tách nền để thử đồ & huấn luyện LoRA, bảng thông số size (`XS` → `3XL`), tồn kho theo size, tông da và dịp mặc phù hợp.
 
-#### 2. Thuật toán Tiền xử lý Set đồ & Sắp xếp Thứ tự Layer (Layering Algorithm)
-Khi người dùng bấm chọn nhiều món hoặc nhận gợi ý từ Stylist, thuật toán chuẩn hóa danh sách sản phẩm trước khi gửi sang AI Try-On:
+#### 2. Thuật toán Tiền xử lý Set đồ & Sắp xếp Thứ tự Layer (`validateAndOrderOutfit`)
+Khi người dùng chọn nhiều món hoặc nhận gợi ý từ Stylist, thuật toán giải quyết xung đột giữa 4 slot (`top`, `bottom`, `outer`, `dress`) và sắp xếp theo thứ tự lớp mặc (`layer_level` và `SLOT_ORDER = { bottom: 1, top: 2, dress: 3, outer: 4 }`):
 ```javascript
-// Pseudocode Thuật toán Chuẩn hóa Set đồ
-function validateAndOrderOutfit(selectedProducts) {
-    const slots = {};
-    const messages = [];
+// Thuật toán Chuẩn hóa Set đồ & Phân tầng Layer (backend/src/routes/stylist.routes.mjs)
+const SLOT_ORDER = { bottom: 1, top: 2, dress: 3, outer: 4 };
 
-    // 1. Giải quyết xung đột slot (Món chọn sau ghi đè món chọn trước)
-    for (const prod of selectedProducts) {
-        if (slots[prod.slot]) {
-            messages.push(`Đã thay thế ${slots[prod.slot].name} bằng ${prod.name}`);
-        }
-        slots[prod.slot] = prod;
-    }
+export function validateAndOrderOutfit(productIds) {
+  const slots = { top: null, bottom: null, outer: null, dress: null };
+  const notifications = [];
 
-    // 2. Sắp xếp thứ tự mặc lớp (Layering Order)
-    // Quy tắc: Top (Layer 1) -> Bottom -> Outer (Layer 2) -> Shoes
-    const orderedList = Object.values(slots).sort((a, b) => {
-        return a.layer_level - b.layer_level;
-    });
+  for (const id of productIds) {
+    const prod = byId.get(id);
+    if (!prod) continue;
+    const isOuter = prod.cut === 'blazer';
+    const slot = isOuter ? 'outer' : (prod.category === 'bottoms' ? 'bottom' : (prod.category === 'dresses' ? 'dress' : 'top'));
+    const layer_level = isOuter ? 2 : 1;
+    // Giải quyết xung đột: Đầm thay thế Top + Bottom; chọn Top/Bottom sẽ gỡ Đầm; cùng slot tự ghi đè
+    // ...
+  }
 
-    return { orderedProducts: orderedList, notifications: messages };
+  const orderedItems = Object.values(slots)
+    .filter(Boolean)
+    .sort((a, b) => (a.layer_level - b.layer_level) || ((SLOT_ORDER[a.slot] || 9) - (SLOT_ORDER[b.slot] || 9)));
+
+  return { orderedItems, notifications };
 }
 ```
 
-#### 3. Thiết kế Prompt AI Stylist Chatbot
-Hệ thống sử dụng Gemini API hoặc OpenAI API với System Prompt chuyên gia thời trang:
-* *Vai trò*: Chuyên gia định hình phong cách cá nhân cho shop thời trang.
-* *Nhiệm vụ*: Đọc hồ sơ người dùng (chiều cao, cân nặng, tông da, dịp mặc), tìm kiếm trong 24 sản phẩm của shop và trả về lời tư vấn ngắn gọn kèm danh sách `product_ids` phù hợp.
+#### 3. Thiết kế AI Stylist Chatbot (`rules.mjs` + `llm.mjs`)
+* Phân tích ngữ cảnh tiếng Việt có dấu/không dấu: danh mục, kiểu cắt (`cut`), màu sắc, dịp mặc (`office`, `casual`, `formal`), ngân sách (`dưới 500k`, `1,2 triệu`), tông da, vóc dáng và tư vấn size theo số đo 3 vòng.
+* Khi có `OPENAI_API_KEY`, module `llm.mjs` viết lại lời tư vấn tự nhiên và tuyệt đối chỉ sử dụng sản phẩm có thật từ kết quả xếp hạng (`rules.mjs`), chống hallucination 100%.
 
 ---
 
 ### 1.5. Thiết kế Cơ bản: AI Vision Pipeline 2 Bước & Huấn luyện LoRA (An Đức Minh Trí)
 
-Thành viên **An Đức Minh Trí** tự tay thiết kế cấu trúc AI Microservice tại `ai-service/` và triển khai trên GPU PC của mình.
+Thành viên **An Đức Minh Trí** tự tay thiết kế cấu trúc AI Microservice tại `ai-service/app.py` và kịch bản huấn luyện tại `scripts/train/train_lora.py`.
 
 #### 1. Quy trình Huấn luyện LoRA Offline (`scripts/train/train_lora.py`)
-* **Mô hình Base**: CatVTON hoặc Stable Diffusion Inpainting (`runwayml/stable-diffusion-inpainting`).
-* **Kỹ thuật**: Gắn LoRA adapters vào các tầng Cross-Attention của U-Net với tham số:
+* **Mô hình Base**: Stable Diffusion Inpainting (`runwayml/stable-diffusion-inpainting`) kết hợp PEFT LoRA.
+* **Kỹ thuật**: Gắn LoRA adapters vào các tầng Cross-Attention (`to_k`, `to_q`, `to_v`, `to_out.0`) của U-Net với tham số:
   * Rank $r = 16$, LoRA Alpha $\alpha = 32$, LoRA Dropout $= 0.05$.
-  * Optimizer: `AdamW8bit`, Learning Rate: $1\times 10^{-4}$.
-  * Batch size: 2, Số epochs: 50–80.
-* **Tập dữ liệu**: 24 sản phẩm từ bạn Tùng (ảnh áo + ảnh mẫu mặc tương ứng).
-* **Kết quả đầu ra**: Tệp `fashion_lora.safetensors` (~120MB) ghi nhận đặc trưng chuẩn xác của các sản phẩm shop.
-* **Trích xuất số liệu học thuật**: Trí xuất log Loss theo từng Epoch và tính điểm SSIM để làm báo cáo khoa học.
+  * Optimizer: `AdamW`, Learning Rate: $1\times 10^{-4}$, Batch size: 2, Số epochs: 50.
+* **Tập dữ liệu**: 24 ảnh sản phẩm từ `frontend/public/images/garments` kèm caption mô tả.
+* **Kết quả đầu ra**: Tệp trọng số `ai-service/weights/fashion_lora.safetensors` và nhật ký hội tụ hàm mất mát `ai-service/weights/loss_log.json`.
 
-#### 2. BƯỚC 1: Kiểm tra Toàn thân & Tách nền trắng (`/api/ai/validate-and-matting`)
-* **Kiểm tra tiêu chuẩn**:
-  * Chạy **YOLOv8-Pose**: Trích xuất 17 keypoints.
-  * *Toàn thân*: Keypoints mũi/mắt/tai và mắt cá/bàn chân có $y$ nằm trong phạm vi $[0.05 \times H, 0.95 \times H]$.
-  * *Số lượng người*: Đếm bounding boxes có class `person`, yêu cầu $= 1$.
-  * *Độ nét*: $\text{Var}(\text{Laplacian}(I)) \ge 100$.
-  * *Nếu vi phạm*: Trả mã HTTP 400 kèm thông báo tiếng Việt cụ thể (VD: *"Ảnh chưa thấy rõ bàn chân, vui lòng lùi ra xa và chụp lại toàn thân"*).
+#### 2. BƯỚC 1: Kiểm tra Khuôn mặt / Khung hình & Tách nền trắng (`/api/ai/validate-and-matting`)
+* **Hỗ trợ linh hoạt 3 chế độ khung hình (`full_body`, `half_body`, `portrait_upper`)**:
+  * Kiểm tra kích thước tối thiểu ($\ge 200\times 200\text{ px}$), tỉ lệ khung hình không méo panorama ($W \le 1.85 \times H$), độ nét ($\text{Var}(\text{Laplacian}) \ge 45$) và độ sáng trung bình ($38 \le \bar{I} \le 246$).
+  * Chạy **YOLOv8-Pose** (17 keypoints) kết hợp **OpenCV Haar Cascade Face Detection**: Bắt buộc có **đúng 1 người** và **nhận diện rõ khuôn mặt**.
+  * Tự động phân loại khung hình (hoặc áp dụng `preferredFraming` người dùng chọn):
+    * `full_body` (Toàn thân): Thấy đủ vai, hông và đầu gối/cổ chân → Hỗ trợ thử `top`, `outer`, `bottom`, `dress`.
+    * `half_body` (Nửa người): Thấy mặt, vai và thân trên/hông → Hỗ trợ thử `top`, `outer`, `dress`.
+    * `portrait_upper` (Cận mặt & vai): Thấy rõ khuôn mặt và vùng cổ/vai → Hỗ trợ thử `top`, `outer`.
+  * *Nếu vi phạm*: Trả thông báo tiếng Việt cụ thể (VD: *"Ảnh có nhiều hơn 1 người. Vui lòng chỉ chụp một mình bạn."* hoặc *"Chưa nhận diện rõ khuôn mặt..."*).
 * **Tách nền chuyên dụng**:
-  * Đưa ảnh hợp lệ qua **BiRefNet** hoặc **RMBG-1.4**.
-  * Bóc tách nền cảnh cũ, giữ lại từng sợi tóc mảnh tự nhiên.
-  * Phủ màu nền mới là trắng thuần `#FFFFFF`. Kích thước và tỉ lệ ảnh gốc được giữ nguyên 100%.
+  * Đưa ảnh hợp lệ qua **BiRefNet / Rembg** (kèm fallback tách nền OpenCV).
+  * Phủ nền trắng thuần `#FFFFFF` và chuẩn hóa về khung `768×1024` bằng `ImageOps.pad` (căn giữa cho ảnh toàn thân, căn chạm đáy cho ảnh nửa người/cận vai).
 
-#### 3. BƯỚC 2: AI Virtual Try-On với Trọng số LoRA (`/api/ai/try-on`)
-* **Đầu vào**: Ảnh người mẫu nền trắng từ Bước 1 + Danh sách ảnh sản phẩm đã sắp xếp theo layer từ Tùng.
+#### 3. BƯỚC 2: AI Virtual Try-On Thích ứng theo Khung hình (`/api/ai/try-on`)
+* **Đầu vào**: Ảnh người mẫu nền trắng từ Bước 1 + Danh sách trang phục đã giải quyết xung đột slot và sắp xếp theo thứ tự lớp (`bottom` → `top` → `dress` → `outer`).
 * **Xử lý ghép đồ**:
-  * Phân tích pose người mẫu: hướng thân, độ nghiêng vai, góc gập cùi chỏ và đầu gối.
-  * Nạp Base Model gắn adapter `fashion_lora.safetensors`.
-  * Co nếp vải ôm theo chuyển động cơ thể; đồng nhất ánh sáng và bóng đổ giữa áo và cơ thể người.
-  * Ghép theo thứ tự lớp: Áo trong trước (`layer 1`) → Áo khoác ngoài sau (`layer 2`).
-  * Giữ nguyên 100% khuôn mặt, màu da, kiểu tóc, dáng người và nền trắng `#FFFFFF`. Không sinh dị tật bàn tay hay ngón tay thừa.
+  * Tự động kiểm tra các món đồ so với `supportedSlots` của khung hình hiện tại: nếu ảnh ở chế độ `portrait_upper` hoặc `half_body` mà chọn kèm quần/chân váy (`bottom`), hệ thống tự động bỏ qua món không thuộc khung hình và trả về cảnh báo trong mảng `warnings`.
+  * Tính toán hộp tọa độ trang phục (`compute_garment_box`) bám sát keypoints vai/hông/mắt cá từ YOLOv8-Pose hoặc suy luận tỉ lệ giải phẫu từ vị trí khuôn mặt.
+  * Nếu có GPU + Diffusers (`fashion_lora.safetensors`), chạy Inpainting hòa trộn nếp vải và ánh sáng; nếu chạy CPU, sử dụng Pose/Face-Guided 2D Compositing theo đúng thứ tự lớp Layer 1 → Layer 2.
+  * Giữ nguyên 100% khuôn mặt, màu da, kiểu tóc và nền trắng `#FFFFFF`.
 
 ---
 
@@ -451,16 +453,16 @@ Dự án chia đều cho **5 thành viên (20% khối lượng / người)**. M�
 
 | Mã | Tên kịch bản | Thao tác thực hiện | Kết quả mong đợi | Phụ trách chính |
 | :--- | :--- | :--- | :--- | :--- |
-| **K01** | Kiểm tra ảnh thiếu chân / thiếu đầu | Người dùng tải ảnh chụp chỉ thấy từ đầu đến thắt lưng | AI Bước 1 chặn lại ngay lập tức; hiển thị thông báo tiếng Việt: *"Ảnh chưa thấy rõ bàn chân, vui lòng lùi ra xa và chụp lại toàn thân"*; không gọi Bước 2 | Trí + Thành |
-| **K02** | Kiểm tra ảnh có nhiều người | Tải ảnh chụp nhóm 2 người trở lên | Báo lỗi tiếng Việt: *"Ảnh có nhiều hơn 1 người, vui lòng chỉ chụp một mình bạn"* | Trí + Thành |
-| **K03** | Tách nền ảnh đạt chuẩn | Tải ảnh toàn thân rõ nét trong phòng ngủ | Nền cũ bị xóa hoàn toàn; thay bằng nền trắng thuần `#FFFFFF`; viền tóc tự nhiên, không rách viền, giữ 100% gương mặt và tỉ lệ người | Trí + Thành |
-| **K04** | Phối 1 món đơn lẻ có LoRA Weights | Chọn ảnh từ Bước 1 và chọn 1 áo thun độc quyền của shop | Áo mới thay thế áo cũ; cổ áo, vai áo khớp chuẩn dáng đứng; logo và họa tiết đặc trưng của shop hiện rõ ràng nhờ LoRA | Trí + Thành |
-| **K05** | Phối cả bộ (Áo + Quần + Giày) | Chọn đồng thời 3 món khác slot | Cả 3 món xuất hiện đồng bộ trên người; ống quần vừa chân, giày nằm đúng bàn chân; ánh sáng tổng thể đồng nhất | Trí + Thành + Tùng |
-| **K06** | Xử lý trùng slot (Chọn 2 chiếc quần) | Người dùng chọn Quần jeans, sau đó bấm chọn thêm Quần âu | Hệ thống tự động bỏ Quần jeans, áp dụng Quần âu; gửi thông báo: *"Đã đổi sang Quần âu cho phần thân dưới"* | Tùng + Thành |
-| **K07** | Phối nhiều lớp (Layering) | Chọn 1 Áo thun trắng (`layer: 1`) và 1 Áo blazer (`layer: 2`) | AI dựng đúng thứ tự: Áo thun bên trong, blazer khoác bên ngoài tự nhiên, không bị lộn xộn lớp | Trí + Tùng |
-| **K08** | Tư thế tay che khuất (Khoanh tay) | Người dùng chụp ảnh tư thế khoanh tay trước ngực | Áo mới được luồn phía sau cánh tay; bàn tay và cổ tay khoanh phía trước được giữ nguyên không bị che mất | Trí + Thành |
-| **K09** | Tư vấn từ Chatbot → Chuyển sang thử đồ | Hỏi Chatbot: "Gợi ý set đồ đi phỏng vấn", bấm "Thử cả set này" | Điều hướng sang phòng phối đồ; tự động nạp sẵn Áo sơ mi và Quần tây vào các slot tương ứng | Tùng + Tường + Thành |
-| **K10** | Kiểm tra Cache & Bảo mật ảnh | Thử lại đúng set đồ đã thử trước đó; kiểm tra sau 24 giờ | Lần thử lại lấy kết quả tức thì từ Cache (<0.5s); sau 24h ảnh gốc của phiên khách tự động bị dọn dẹp khỏi ổ cứng server | Lợi + Trí |
+| **K01** | Kiểm tra ảnh lỗi & phân loại khung hình linh hoạt | (a) Tải ảnh quá nhỏ / panorama quá ngang / thiếu mặt; (b) Tải ảnh nửa người hoặc cận mặt & vai có rõ khuôn mặt | (a) Bước 1 chặn lại ngay với mã HTTP 400 và thông báo tiếng Việt rõ ràng; (b) Ảnh nửa người / cận vai có mặt được nhận diện đúng framing (`half_body` / `portrait_upper`), tách nền trắng `#FFFFFF` và khi thử kèm quần sẽ tự cảnh báo trong `warnings` | Trí + Thành |
+| **K02** | Kiểm tra ảnh có nhiều người | Tải ảnh chụp nhóm 2 người trở lên | Báo lỗi tiếng Việt: *"Ảnh có nhiều hơn 1 người. Vui lòng chỉ chụp một mình bạn."* | Trí + Thành |
+| **K03** | Tách nền ảnh đạt chuẩn | Tải ảnh toàn thân hoặc nửa người rõ nét | Nền cũ bị xóa hoàn toàn; thay bằng nền trắng thuần `#FFFFFF` chuẩn khung `768×1024`; viền tóc tự nhiên, giữ 100% gương mặt và tỉ lệ người | Trí + Thành |
+| **K04** | Phối 1 món đơn lẻ có LoRA Weights | Chọn ảnh từ Bước 1 và chọn 1 áo sơ mi / áo thun của shop | Áo mới được ghép khớp cổ áo, vai áo theo dáng đứng và tọa độ khuôn mặt/keypoints; chất liệu và màu sắc hiển thị sắc nét | Trí + Thành |
+| **K05** | Phối cả bộ đa tầng (Áo trong + Quần/Váy + Blazer khoác ngoài) | Chọn đồng thời Áo sơ mi (`top`), Quần ống suông (`bottom`) và Blazer (`outer`) | Cả 3 món xuất hiện đồng bộ trên người theo đúng thứ tự lớp (`bottom` → `top` → `outer`); ánh sáng tổng thể đồng nhất | Trí + Thành + Tùng |
+| **K06** | Xử lý trùng slot & xung đột Đầm vs Áo/Quần | (a) Chọn Quần jeans rồi bấm chọn Quần tây; (b) Đang chọn Đầm rồi bấm chọn Áo hoặc Quần | (a) Tự động thay Quần jeans bằng Quần tây và báo *"Đã đổi sang Quần tây Noir cho phần thân dưới"*; (b) Tự động gỡ Đầm và báo *"Đã bỏ Đầm ... để phối cùng ..."* | Tùng + Thành |
+| **K07** | Phối nhiều lớp (Layering) | Chọn 1 Áo thun trắng (`layer_level: 1`) và 1 Áo blazer (`layer_level: 2`) | Hệ thống sắp xếp đúng thứ tự: Áo thun mặc bên trong, Blazer khoác bên ngoài tự nhiên, không bị lộn lớp | Trí + Tùng |
+| **K08** | Khôi phục lượt thử đã lưu & So sánh Before/After | Lưu kết quả thử đồ, mở từ Lịch sử hoặc trang Tài khoản (`?look=<jobId>`) và kéo thanh trượt So sánh | Nạp lại đúng ảnh kết quả cùng toàn bộ các món trong set; thanh trượt Before/After (`clip-path`) chồng khít 100% với ảnh nền trắng Bước 1 | Thành + Tường |
+| **K09** | Tư vấn từ Chatbot → Chuyển sang thử cả set | Hỏi Chatbot: *"Phối set đi làm dưới 1,2 triệu"*, bấm *"Phối cả set này"* | Điều hướng sang `/fitting-room?items=...`; gọi `/api/stylist/validate-outfit` tự động nạp sẵn Áo và Quần vào các slot tương ứng | Tùng + Tường + Thành |
+| **K10** | Kiểm tra Cache Hash & Bảo mật TTL 24h | Thử lại đúng set đồ và khung hình đã thử trước đó; kiểm tra cơ chế `store.sweep()` sau 24 giờ | Lần thử lại trả kết quả tức thì từ Cache (`cached: true`, `< 0.1s`); sau 24h dữ liệu ảnh tạm của phiên khách tự động bị xóa khỏi SQLite | Lợi + Trí |
 
 ---
 
