@@ -1,0 +1,2061 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "FORME Studio SOA API (Merged Specification)",
+    "version": "2.0.0",
+    "description": "Hợp đồng OpenAPI 3.0 JSON hợp nhất từ 5 phân hệ dịch vụ SOA của nhóm. Versioning: Semantic version qua info.version (2.0.0), định hướng nâng cấp URL /api/v1 khi có breaking change."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:5173",
+      "description": "Local Development Gateway"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Identity & Session",
+      "description": "Health, Session, Auth và Merge Guest Session"
+    },
+    {
+      "name": "Profile & Admin",
+      "description": "Hồ sơ số đo vóc dáng và thống kê quản trị demo"
+    },
+    {
+      "name": "Catalog & Search",
+      "description": "Danh mục sản phẩm, chi tiết, gợi ý và tìm kiếm"
+    },
+    {
+      "name": "Cart",
+      "description": "Giỏ hàng và kiểm tra tồn kho theo size"
+    },
+    {
+      "name": "Stylist & Chat",
+      "description": "Chatbot tư vấn thời trang và chuẩn hóa bộ phối đồ"
+    },
+    {
+      "name": "Media",
+      "description": "Tải lên, đọc và xóa ảnh theo owner với Cache-Control: private, no-store"
+    },
+    {
+      "name": "Async Try-On Jobs",
+      "description": "Tạo tác vụ bất đồng bộ, polling trạng thái và lưu lịch sử"
+    },
+    {
+      "name": "AI Vision Pipeline",
+      "description": "Kiểm tra ảnh toàn thân, tách nền trắng và phối đồ AI 2 bước"
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Identity & Session"
+        ],
+        "summary": "Kiểm tra trạng thái Backend Gateway",
+        "responses": {
+          "200": {
+            "description": "Gateway đang hoạt động",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "tags": [
+          "Identity & Session"
+        ],
+        "summary": "Lấy bản hợp nhất OpenAPI 3.0 JSON của toàn bộ hệ thống",
+        "responses": {
+          "200": {
+            "description": "Tài liệu OpenAPI 3.0 JSON hợp nhất từ 5 phân hệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/session": {
+      "get": {
+        "tags": [
+          "Identity & Session"
+        ],
+        "summary": "Lấy thông tin phiên hiện tại (tự cấp phiên khách nếu chưa có)",
+        "responses": {
+          "200": {
+            "description": "Thông tin phiên đầy đủ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPayload"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": [
+          "Identity & Session"
+        ],
+        "summary": "Đăng ký tài khoản mới và gộp dữ liệu phiên khách",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Đăng ký thành công, trả về phiên đã gộp",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPayload"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email đã tồn tại (EMAIL_EXISTS)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dữ liệu không hợp lệ (INVALID_LOGIN / INVALID_NAME)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Vượt giới hạn tốc độ (RATE_LIMIT)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Identity & Session"
+        ],
+        "summary": "Đăng nhập tài khoản và gộp dữ liệu phiên khách",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đăng nhập thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPayload"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sai email hoặc mật khẩu (INVALID_LOGIN)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Sai định dạng email/mật khẩu (INVALID_LOGIN)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Identity & Session"
+        ],
+        "summary": "Đăng xuất và khởi tạo phiên khách mới",
+        "responses": {
+          "200": {
+            "description": "Đăng xuất thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPayload"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile": {
+      "get": {
+        "tags": [
+          "Profile & Admin"
+        ],
+        "summary": "Lấy hồ sơ vóc dáng và profileVersion hiện tại",
+        "responses": {
+          "200": {
+            "description": "Hồ sơ hiện tại",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": {
+                      "$ref": "#/components/schemas/BodyProfile"
+                    },
+                    "profileVersion": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Profile & Admin"
+        ],
+        "summary": "Cập nhật số đo cơ thể, tông da, phong cách và dáng mặt",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BodyProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật thành công, tăng profileVersion nếu số đo hoặc tông da thay đổi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPayload"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Số đo hoặc tông da ngoài ngưỡng cho phép (INVALID_PROFILE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/overview": {
+      "get": {
+        "tags": [
+          "Profile & Admin"
+        ],
+        "summary": "Lấy thống kê tổng quan hệ thống (chỉ dành cho admin demo)",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Số liệu tổng quan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "products": {
+                      "type": "integer"
+                    },
+                    "accounts": {
+                      "type": "integer"
+                    },
+                    "jobs": {
+                      "type": "integer"
+                    },
+                    "settings": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền quản trị (FORBIDDEN)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products": {
+      "get": {
+        "tags": [
+          "Catalog & Search"
+        ],
+        "summary": "Lấy danh sách sản phẩm có lọc và phân trang",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Từ khóa tìm kiếm tiếng Việt"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "tops",
+                "bottoms",
+                "dresses"
+              ]
+            }
+          },
+          {
+            "name": "occasion",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "office",
+                "casual",
+                "formal"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 24,
+              "default": 24
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách sản phẩm phân trang",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/{id}": {
+      "get": {
+        "tags": [
+          "Catalog & Search"
+        ],
+        "summary": "Lấy chi tiết một sản phẩm theo ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "rose-knit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chi tiết sản phẩm",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": {
+                      "$ref": "#/components/schemas/Product"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Không tìm thấy sản phẩm (NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recommendations": {
+      "get": {
+        "tags": [
+          "Catalog & Search"
+        ],
+        "summary": "Gợi ý sản phẩm xếp hạng theo hồ sơ vóc dáng và bộ lọc query",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "occasion",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách gợi ý kèm điểm xếp hạng và lý do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "post": {
+        "tags": [
+          "Catalog & Search"
+        ],
+        "summary": "Tìm kiếm và xếp hạng sản phẩm nâng cao bằng JSON body",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string",
+                    "example": "áo sơ mi đi làm cho da ngăm dưới 500k"
+                  },
+                  "category": {
+                    "type": "string"
+                  },
+                  "occasion": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Kết quả xếp hạng",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cart": {
+      "get": {
+        "tags": [
+          "Cart"
+        ],
+        "summary": "Lấy giỏ hàng hiện tại của phiên",
+        "responses": {
+          "200": {
+            "description": "Thông tin giỏ hàng và tổng tiền",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cart/items": {
+      "post": {
+        "tags": [
+          "Cart"
+        ],
+        "summary": "Thêm sản phẩm vào giỏ hàng (cộng dồn nếu trùng size)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CartItemInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Giỏ hàng sau khi thêm",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Sai size hoặc vượt tồn kho (INVALID_CART)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Cart"
+        ],
+        "summary": "Cập nhật số lượng cụ thể của một dòng trong giỏ",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CartItemInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Giỏ hàng sau khi cập nhật",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Vượt tồn kho hoặc số lượng không hợp lệ (INVALID_CART)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Cart"
+        ],
+        "summary": "Xóa một sản phẩm theo size khỏi giỏ hàng",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "productId",
+                  "size"
+                ],
+                "properties": {
+                  "productId": {
+                    "type": "string",
+                    "example": "rose-knit"
+                  },
+                  "size": {
+                    "type": "string",
+                    "example": "M"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Giỏ hàng sau khi xóa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{id}": {
+      "get": {
+        "tags": [
+          "Stylist & Chat"
+        ],
+        "summary": "Lấy lịch sử hội thoại của phiên hiện tại",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách tin nhắn hội thoại",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Không tìm thấy hội thoại hoặc không thuộc phiên hiện tại (NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "tags": [
+          "Stylist & Chat"
+        ],
+        "summary": "Gửi câu hỏi cho AI Stylist và nhận lời tư vấn kèm thẻ sản phẩm thật",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lịch sử hội thoại mới nhất sau khi Stylist trả lời",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stylist đang xử lý tin trước đó (CHAT_BUSY) hoặc phiên đã đổi (SESSION_CHANGED)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Nội dung tin nhắn rỗng hoặc vượt 500 ký tự (INVALID_MESSAGE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Vượt quá 20 tin nhắn/phút (RATE_LIMIT)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stylist/validate-outfit": {
+      "post": {
+        "tags": [
+          "Stylist & Chat"
+        ],
+        "summary": "Giải quyết xung đột slot trang phục và sắp xếp thứ tự lớp (Layering) trước khi gửi sang AI Try-On",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateOutfitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Danh sách trang phục đã chuẩn hóa theo thứ tự mặc lớp và danh sách thông báo thay thế slot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateOutfitResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Danh sách productIds rỗng hoặc không hợp lệ (INVALID_OUTFIT)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/media": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Tải ảnh PNG/JPEG/WebP lên lưu trữ tạm thời (TTL 24h)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "image"
+                ],
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "description": "Data URI base64 (tối đa 5MB ảnh gốc)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tải lên thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "url": {
+                      "type": "string",
+                      "example": "/api/media/550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "profileVersion": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Định dạng hoặc kích thước ảnh không hợp lệ (INVALID_IMAGE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/media/{id}": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Đọc ảnh PNG thuộc phiên sở hữu",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dữ liệu ảnh nhị phân PNG (private, no-store)",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Không tìm thấy hoặc không có quyền truy cập (NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Xóa ảnh khuôn mặt/gốc và hủy toàn bộ job liên quan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Xóa thành công, trả về phiên đã cập nhật",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Không tìm thấy ảnh (NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/avatars": {
+      "post": {
+        "tags": [
+          "Async Try-On Jobs"
+        ],
+        "summary": "Tạo tác vụ dựng phôi vóc dáng bất đồng bộ (202 Accepted)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "profileVersion"
+                ],
+                "properties": {
+                  "profileVersion": {
+                    "type": "integer"
+                  },
+                  "useFace": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "consent": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Đã nhận tác vụ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Hồ sơ đã thay đổi (STALE_PROFILE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/try-ons": {
+      "get": {
+        "tags": [
+          "Async Try-On Jobs"
+        ],
+        "summary": "Lấy danh sách các lượt thử đồ đã lưu của phiên/tài khoản",
+        "responses": {
+          "200": {
+            "description": "Danh sách lượt thử đã lưu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/JobView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Async Try-On Jobs"
+        ],
+        "summary": "Tạo tác vụ thử đồ bất đồng bộ (202 Accepted)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "profileVersion",
+                  "productId"
+                ],
+                "properties": {
+                  "profileVersion": {
+                    "type": "integer"
+                  },
+                  "productId": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "2d",
+                      "ai"
+                    ],
+                    "default": "2d"
+                  },
+                  "consent": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Đã đưa tác vụ vào hàng đợi (hoặc trả ngay cache)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sản phẩm không tồn tại (NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Hồ sơ cũ (STALE_PROFILE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/try-ons/{id}": {
+      "patch": {
+        "tags": [
+          "Async Try-On Jobs"
+        ],
+        "summary": "Lưu một lượt thử đồ hoàn tất vào hồ sơ (gia hạn TTL 30 ngày cho user)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Đã đánh dấu lưu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Không tìm thấy lượt thử (NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{id}": {
+      "get": {
+        "tags": [
+          "Async Try-On Jobs"
+        ],
+        "summary": "Polling trạng thái và đường dẫn ảnh kết quả của tác vụ",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trạng thái tác vụ hiện tại",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Không tìm thấy tác vụ (NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/validate-and-matting": {
+      "post": {
+        "tags": [
+          "AI Vision Pipeline"
+        ],
+        "summary": "Bước 1: Kiểm tra ảnh có khuôn mặt (toàn thân, nửa người hoặc cận mặt & vai), phân loại framing và tách nền trắng thuần #FFFFFF",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "image"
+                ],
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "description": "Ảnh người dùng định dạng Data URI base64 (tối đa 15MB payload)"
+                  },
+                  "preferredFraming": {
+                    "type": "string",
+                    "enum": [
+                      "full_body",
+                      "half_body",
+                      "portrait_upper"
+                    ],
+                    "description": "Chế độ khung hình người dùng chọn (bỏ trống để AI tự phân loại)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ảnh đạt chuẩn có khuôn mặt rõ và đã tách nền trắng #FFFFFF (768x1024)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "image": {
+                      "type": "string",
+                      "description": "Ảnh PNG nền trắng Data URI base64"
+                    },
+                    "framing": {
+                      "type": "string",
+                      "enum": [
+                        "full_body",
+                        "half_body",
+                        "portrait_upper"
+                      ],
+                      "example": "half_body"
+                    },
+                    "framingLabel": {
+                      "type": "string",
+                      "example": "Nửa người"
+                    },
+                    "supportedSlots": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "top",
+                        "outer",
+                        "dress"
+                      ]
+                    },
+                    "engine": {
+                      "type": "string",
+                      "example": "yolov8-pose+rembg:birefnet-general"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ảnh thiếu khuôn mặt / quá nhỏ / mờ / tối / nhiều người (INVALID_IMAGE / AI_VALIDATION_ERROR)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Vượt giới hạn gọi AI (RATE_LIMIT)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/try-on": {
+      "post": {
+        "tags": [
+          "AI Vision Pipeline"
+        ],
+        "summary": "Bước 2: Phối nhiều lớp trang phục thích ứng theo framing (toàn thân / nửa người / cận mặt & vai) kèm Cache Hash & TTL 24h",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "personImage",
+                  "items"
+                ],
+                "properties": {
+                  "personImage": {
+                    "type": "string",
+                    "description": "Ảnh nền trắng từ Bước 1 (Data URI base64)"
+                  },
+                  "framing": {
+                    "type": "string",
+                    "enum": [
+                      "full_body",
+                      "half_body",
+                      "portrait_upper"
+                    ]
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "gemini",
+                      "lora"
+                    ],
+                    "default": "auto"
+                  },
+                  "forceRefresh": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "example": "rose-knit"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "tops",
+                            "bottoms",
+                            "dresses"
+                          ]
+                        },
+                        "cut": {
+                          "type": "string"
+                        },
+                        "garmentImage": {
+                          "type": "string",
+                          "example": "/images/garments/rose-knit.png"
+                        },
+                        "layer_level": {
+                          "type": "integer",
+                          "enum": [
+                            1,
+                            2
+                          ],
+                          "default": 1
+                        },
+                        "slot": {
+                          "type": "string",
+                          "enum": [
+                            "top",
+                            "bottom",
+                            "outer",
+                            "dress"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Phối đồ hoàn tất, trả ảnh kết quả kèm jobId, framing và danh sách cảnh báo (nếu có)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "jobId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "imageUrl": {
+                      "type": "string",
+                      "example": "/api/media/550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "image": {
+                      "type": "string",
+                      "description": "Ảnh kết quả PNG Data URI base64"
+                    },
+                    "framing": {
+                      "type": "string",
+                      "enum": [
+                        "full_body",
+                        "half_body",
+                        "portrait_upper"
+                      ]
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cached": {
+                      "type": "boolean"
+                    },
+                    "engine": {
+                      "type": "string",
+                      "example": "pose-face-guided-2d"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Thiếu ảnh người mẫu hoặc danh sách đồ (INVALID_TRYON)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Lỗi xử lý phối đồ (TRYON_ERROR)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "forme_sid",
+        "description": "Cookie phiên HttpOnly SameSite=Lax do Gateway cấp tự động cho khách hoặc tài khoản đăng nhập."
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "requestId"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "INVALID_PROFILE"
+          },
+          "message": {
+            "type": "string",
+            "example": "Chiều cao phải nằm trong khoảng 145–190."
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "required": [
+          "total",
+          "page"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "example": 17
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 1
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 60,
+            "example": "Doãn Duy Lợi"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 200,
+            "example": "loi@forme.demo"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "example": "FormeStudio2026!"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "studio@forme.demo"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "example": "FormeStudio2026!"
+          }
+        }
+      },
+      "BodyProfile": {
+        "type": "object",
+        "required": [
+          "height",
+          "weight",
+          "bust",
+          "waist",
+          "hip",
+          "tone"
+        ],
+        "properties": {
+          "height": {
+            "type": "integer",
+            "minimum": 145,
+            "maximum": 190,
+            "example": 165
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 40,
+            "maximum": 100,
+            "example": 54
+          },
+          "bust": {
+            "type": "integer",
+            "minimum": 65,
+            "maximum": 135,
+            "example": 86
+          },
+          "waist": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 125,
+            "example": 69
+          },
+          "hip": {
+            "type": "integer",
+            "minimum": 70,
+            "maximum": 145,
+            "example": 93
+          },
+          "tone": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "example": 2
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "",
+              "minimal",
+              "classic",
+              "relaxed"
+            ],
+            "example": "minimal"
+          },
+          "faceShape": {
+            "type": "string",
+            "enum": [
+              "",
+              "oval",
+              "round",
+              "square",
+              "heart"
+            ],
+            "example": "oval"
+          }
+        }
+      },
+      "UserInfo": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "member",
+              "admin"
+            ]
+          }
+        }
+      },
+      "SessionPayload": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserInfo"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/BodyProfile"
+          },
+          "profileVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "faceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cart": {
+            "type": "object"
+          },
+          "settings": {
+            "type": "object"
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "rose-knit"
+          },
+          "name": {
+            "type": "string",
+            "example": "Áo dệt kim Rosé"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "tops",
+              "bottoms",
+              "dresses"
+            ]
+          },
+          "cut": {
+            "type": "string",
+            "example": "knit"
+          },
+          "color": {
+            "type": "string",
+            "example": "Hồng đất"
+          },
+          "price": {
+            "type": "integer",
+            "example": 459000
+          },
+          "stock": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "image": {
+            "type": "string"
+          },
+          "garmentImage": {
+            "type": "string"
+          }
+        }
+      },
+      "CartItemInput": {
+        "type": "object",
+        "required": [
+          "productId",
+          "size"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "example": "rose-knit"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "XS",
+              "S",
+              "M",
+              "L",
+              "XL",
+              "2XL",
+              "3XL"
+            ],
+            "example": "M"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "example": 1
+          }
+        }
+      },
+      "CartResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "example": 2
+          },
+          "total": {
+            "type": "integer",
+            "example": 978000
+          }
+        }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "example": "phối set đi làm dưới 1,2 triệu"
+          },
+          "page": {
+            "type": "string",
+            "enum": [
+              "shop",
+              "fitting"
+            ],
+            "default": "shop"
+          },
+          "productId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ConversationResponse": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "assistant"
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                },
+                "cards": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "productId": {
+                        "type": "string"
+                      },
+                      "recommendedSize": {
+                        "type": "string",
+                        "nullable": true
+                      }
+                    }
+                  }
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ValidateOutfitRequest": {
+        "type": "object",
+        "required": [
+          "productIds"
+        ],
+        "properties": {
+          "productIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "sage-tee",
+              "blue-jeans",
+              "navy-blazer"
+            ]
+          }
+        }
+      },
+      "ValidateOutfitResponse": {
+        "type": "object",
+        "properties": {
+          "orderedItems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "cut": {
+                  "type": "string"
+                },
+                "slot": {
+                  "type": "string",
+                  "enum": [
+                    "top",
+                    "bottom",
+                    "outer",
+                    "dress"
+                  ]
+                },
+                "layer_level": {
+                  "type": "integer",
+                  "enum": [
+                    1,
+                    2
+                  ]
+                },
+                "garmentImage": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "notifications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "JobView": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "avatar",
+              "try-on"
+            ]
+          },
+          "profileVersion": {
+            "type": "integer"
+          },
+          "productId": {
+            "type": "string",
+            "nullable": true
+          },
+          "productIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "2d",
+              "face",
+              "ai"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "processing",
+              "completed",
+              "failed"
+            ]
+          },
+          "stage": {
+            "type": "string"
+          },
+          "saved": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      }
+    }
+  }
+}

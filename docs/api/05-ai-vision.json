@@ -77,6 +77,8 @@
                 "properties": {
                   "personImage": { "type": "string", "description": "Ảnh nền trắng từ Bước 1 (Data URI base64)" },
                   "framing": { "type": "string", "enum": ["full_body", "half_body", "portrait_upper"] },
+                  "method": { "type": "string", "enum": ["auto", "gemini", "lora"], "default": "auto" },
+                  "forceRefresh": { "type": "boolean", "default": false },
                   "items": {
                     "type": "array",
                     "minItems": 1,
@@ -84,11 +86,11 @@
                       "type": "object",
                       "required": ["id"],
                       "properties": {
-                        "id": { "type": "string", "example": "linen-shirt" },
+                        "id": { "type": "string", "example": "rose-knit" },
                         "name": { "type": "string" },
                         "category": { "type": "string", "enum": ["tops", "bottoms", "dresses"] },
                         "cut": { "type": "string" },
-                        "garmentImage": { "type": "string", "example": "/images/garments/linen-shirt.png" },
+                        "garmentImage": { "type": "string", "example": "/images/garments/rose-knit.png" },
                         "layer_level": { "type": "integer", "enum": [1, 2], "default": 1 },
                         "slot": { "type": "string", "enum": ["top", "bottom", "outer", "dress"] }
                       }

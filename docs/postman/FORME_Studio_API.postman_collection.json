@@ -1,0 +1,237 @@
+{
+  "info": {
+    "name": "FORME Studio SOA API (Week 12 & 13)",
+    "description": "Postman collection kiểm thử luồng nghiệp vụ End-to-End (Happy Path) và các ca kiểm tra lỗi / phân quyền (Negative Cases) cho dự án FORME Studio.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5173" },
+    { "key": "testEmail", "value": "postman.demo@forme.vn" },
+    { "key": "testPassword", "value": "FormePostman2026!" },
+    { "key": "adminEmail", "value": "studio@forme.demo" },
+    { "key": "adminPassword", "value": "FormeStudio2026!" },
+    { "key": "conversationId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01. Happy Path - End-to-End Flow",
+      "item": [
+        {
+          "name": "01. Health Check",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('status is ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+          ]}}],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/health" }
+        },
+        {
+          "name": "02. Get OpenAPI Spec",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('OpenAPI 3.0.3', () => pm.expect(pm.response.json().openapi).to.eql('3.0.3'));"
+          ]}}],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/openapi.json" }
+        },
+        {
+          "name": "03. Init Guest Session",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.collectionVariables.set('conversationId', body.conversationId);"
+          ]}}],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/session" }
+        },
+        {
+          "name": "04. Update Body Profile",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('profileVersion >= 1', () => pm.expect(pm.response.json().profileVersion).to.be.at.least(1));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"height\": 165,\n  \"weight\": 54,\n  \"bust\": 86,\n  \"waist\": 69,\n  \"hip\": 93,\n  \"tone\": 2,\n  \"style\": \"minimal\",\n  \"faceShape\": \"oval\"\n}" },
+            "url": "{{baseUrl}}/api/profile"
+          }
+        },
+        {
+          "name": "05. List Products (Paginated)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Returns 8 items', () => pm.expect(pm.response.json().items.length).to.eql(8));"
+          ]}}],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/products?page=1&limit=8" }
+        },
+        {
+          "name": "06. Search Products by Intent",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Has results array', () => pm.expect(pm.response.json().results).to.be.an('array'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"q\": \"áo đi làm dưới 500k\"\n}" },
+            "url": "{{baseUrl}}/api/search"
+          }
+        },
+        {
+          "name": "07. Ask AI Stylist Chat",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Contains assistant reply', () => pm.expect(pm.response.json().messages.length).to.be.at.least(2));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"message\": \"Phối set đi làm dưới 1,2 triệu\",\n  \"page\": \"shop\"\n}" },
+            "url": "{{baseUrl}}/api/chat"
+          }
+        },
+        {
+          "name": "08. Validate Outfit & Layer Order",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "const items = pm.response.json().orderedItems;",
+            "pm.test('Outer layer is last', () => pm.expect(items[items.length - 1].layer_level).to.eql(2));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"productIds\": [\"navy-blazer\", \"blue-jeans\", \"black-trouser\", \"sage-tee\"]\n}" },
+            "url": "{{baseUrl}}/api/stylist/validate-outfit"
+          }
+        },
+        {
+          "name": "09. Add Item to Cart",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Cart count >= 1', () => pm.expect(pm.response.json().count).to.be.at.least(1));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"rose-knit\",\n  \"size\": \"M\",\n  \"quantity\": 1\n}" },
+            "url": "{{baseUrl}}/api/cart/items"
+          }
+        },
+        {
+          "name": "10. Login as Demo Admin (Merge Session)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Role is admin', () => pm.expect(pm.response.json().user.role).to.eql('admin'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "11. Admin Overview (Authorized)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Returns product count', () => pm.expect(pm.response.json().products).to.eql(17));"
+          ]}}],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/admin/overview" }
+        },
+        {
+          "name": "12. Logout",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('User is null', () => pm.expect(pm.response.json().user).to.be.null);"
+          ]}}],
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/auth/logout" }
+        }
+      ]
+    },
+    {
+      "name": "02. Negative & Security Cases",
+      "item": [
+        {
+          "name": "N1. Unauthorized Admin Overview (403 FORBIDDEN)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 403 Forbidden', () => pm.response.to.have.status(403));",
+            "pm.test('Error code FORBIDDEN', () => pm.expect(pm.response.json().code).to.eql('FORBIDDEN'));",
+            "pm.test('Has requestId', () => pm.expect(pm.response.json().requestId).to.be.a('string'));"
+          ]}}],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/admin/overview" }
+        },
+        {
+          "name": "N2. Invalid Login Password (401 INVALID_LOGIN)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 401 Unauthorized', () => pm.response.to.have.status(401));",
+            "pm.test('Error code INVALID_LOGIN', () => pm.expect(pm.response.json().code).to.eql('INVALID_LOGIN'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"studio@forme.demo\",\n  \"password\": \"WrongPassword123!\"\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "N3. Invalid Body Profile Height (422 INVALID_PROFILE)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 422 Unprocessable', () => pm.response.to.have.status(422));",
+            "pm.test('Error code INVALID_PROFILE', () => pm.expect(pm.response.json().code).to.eql('INVALID_PROFILE'));"
+          ]}}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"height\": 250,\n  \"weight\": 54,\n  \"bust\": 86,\n  \"waist\": 69,\n  \"hip\": 93,\n  \"tone\": 2\n}" },
+            "url": "{{baseUrl}}/api/profile"
+          }
+        },
+        {
+          "name": "N4. Cart Stock Overflow (422 INVALID_CART)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 422 Unprocessable', () => pm.response.to.have.status(422));",
+            "pm.test('Error code INVALID_CART', () => pm.expect(pm.response.json().code).to.eql('INVALID_CART'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"rose-knit\",\n  \"size\": \"M\",\n  \"quantity\": 999\n}" },
+            "url": "{{baseUrl}}/api/cart/items"
+          }
+        },
+        {
+          "name": "N5. Empty Outfit Validation (422 INVALID_OUTFIT)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 422 Unprocessable', () => pm.response.to.have.status(422));",
+            "pm.test('Error code INVALID_OUTFIT', () => pm.expect(pm.response.json().code).to.eql('INVALID_OUTFIT'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"productIds\": []\n}" },
+            "url": "{{baseUrl}}/api/stylist/validate-outfit"
+          }
+        },
+        {
+          "name": "N6. Non-existent Product (404 NOT_FOUND)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));",
+            "pm.test('Error code NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('NOT_FOUND'));"
+          ]}}],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/products/khong-ton-tai" }
+        },
+        {
+          "name": "N7. Missing AI Image Payload (400 INVALID_IMAGE)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('Error code INVALID_IMAGE', () => pm.expect(pm.response.json().code).to.eql('INVALID_IMAGE'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/api/ai/validate-and-matting"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -30,9 +30,11 @@ export function Empty({icon:Icon=ShoppingBag,title,children}) {
 }
 export function ProductCard({record,navigate,onCart,onDetail,index}) {
   const {product:p,match,reasons}=record;
+  const [imgDead,setImgDead]=React.useState(false);
+  if (imgDead) return null;
   return <article className="product">
     <div className="product-media">
-      <button className="photo-hit" onClick={()=>onDetail(p)} aria-label={`Xem chi tiết ${p.name}`}><img src={p.image} alt={p.name} loading={index<4?'eager':'lazy'} width="420" height="560"/></button>
+      <button className="photo-hit" onClick={()=>onDetail(p)} aria-label={`Xem chi tiết ${p.name}`}><img src={p.image} alt={p.name} loading={index<4?'eager':'lazy'} width="420" height="560" onError={()=>setImgDead(true)}/></button>
       {p.badge&&<span className="product-tag">{p.badge}</span>}
       {match&&<span className="match-tag" title={reasons.join(' · ')}><Sparkles size={12}/> Phù hợp {match}</span>}
       <button className="round-detail" title="Chi tiết sản phẩm" aria-label={`Chi tiết ${p.name}`} onClick={()=>onDetail(p)}><ArrowUpRight size={16}/></button>

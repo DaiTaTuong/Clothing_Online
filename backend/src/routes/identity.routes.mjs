@@ -27,7 +27,7 @@ function rewriteRefs(node) {
   return node;
 }
 
-async function buildMergedOpenApi(root) {
+export async function buildMergedOpenApi(root) {
   const apiDir = resolve(root, 'docs', 'api');
   const common = JSON.parse(await readFile(resolve(apiDir, 'common-schemas.json'), 'utf8'));
   const merged = {
@@ -35,8 +35,11 @@ async function buildMergedOpenApi(root) {
     info: {
       title: 'FORME Studio SOA API (Merged Specification)',
       version: '2.0.0',
-      description: 'Hợp đồng OpenAPI 3.0 JSON hợp nhất từ 5 phân hệ dịch vụ SOA của nhóm.',
+      description: 'Hợp đồng OpenAPI 3.0 JSON hợp nhất từ 5 phân hệ dịch vụ SOA của nhóm. Versioning: Semantic version qua info.version (2.0.0), định hướng nâng cấp URL /api/v1 khi có breaking change.',
     },
+    servers: [
+      { url: 'http://127.0.0.1:5173', description: 'Local Development Gateway' },
+    ],
     tags: [],
     paths: {},
     components: {
@@ -53,12 +56,42 @@ async function buildMergedOpenApi(root) {
   return merged;
 }
 
+const SWAGGER_HTML = `<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FORME Studio API — Swagger UI</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <style>body{margin:0;background:#fafafa}</style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: '/api/openapi.json',
+      dom_id: '#swagger-ui',
+      presets: [SwaggerUIBundle.presets.apis],
+      layout: 'BaseLayout',
+      withCredentials: true
+    });
+  </script>
+</body>
+</html>`;
+
 /**
  * Service 01: Identity, Session, Profile & Admin (Doãn Duy Lợi)
  */
 export async function handleIdentityRoutes(ctx) {
   const { req, res, m, p, s, root, demo, store, state, body, json, rate, startSession, mergeSession, payload } = ctx;
   const { get, run } = store;
+
+  if (p === '/api/docs' && m === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.end(SWAGGER_HTML);
+    return true;
+  }
 
   if (p === '/api/openapi.json' && m === 'GET') {
     json(res, await buildMergedOpenApi(root));

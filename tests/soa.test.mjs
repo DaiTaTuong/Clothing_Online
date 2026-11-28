@@ -60,6 +60,23 @@ test('SOA 5 Services: Identity, Catalog/Cart, Stylist/Layering, Media/Jobs & AI 
     }
     assert.ok(!JSON.stringify(specRes.data).includes('./common-schemas.json'), 'External $ref must be resolved');
 
+    const docsRes = await fetch(origin + '/api/docs');
+    assert.equal(docsRes.status, 200);
+    assert.ok(docsRes.headers.get('content-type')?.includes('text/html'));
+    const docsHtml = await docsRes.text();
+    assert.ok(docsHtml.includes('SwaggerUIBundle') && docsHtml.includes('/api/openapi.json'));
+
+    const guestAdmin = await client('/api/admin/overview');
+    assert.equal(guestAdmin.status, 403);
+    assert.equal(guestAdmin.data.code, 'FORBIDDEN');
+
+    const badLogin = await client('/api/auth/login', 'POST', {
+      email: 'studio@forme.demo',
+      password: 'WrongPassword123!',
+    });
+    assert.equal(badLogin.status, 401);
+    assert.equal(badLogin.data.code, 'INVALID_LOGIN');
+
     const tables = store.all("SELECT name FROM sqlite_master WHERE type='table'").map(r => r.name);
     for (const table of ['accounts', 'sessions', 'states', 'media', 'jobs', 'usage']) {
       assert.ok(tables.includes(table));
@@ -81,7 +98,7 @@ test('SOA 5 Services: Identity, Catalog/Cart, Stylist/Layering, Media/Jobs & AI 
     assert.equal(validProfile.status, 200);
     assert.equal(validProfile.data.profileVersion, 1);
 
-    await client('/api/cart/items', 'POST', { productId: 'linen-shirt', size: 'S', quantity: 2 });
+    await client('/api/cart/items', 'POST', { productId: 'rose-knit', size: 'S', quantity: 2 });
 
     const reg = await client('/api/auth/register', 'POST', {
       name: 'Doan Duy Loi',
@@ -102,6 +119,20 @@ test('SOA 5 Services: Identity, Catalog/Cart, Stylist/Layering, Media/Jobs & AI 
     });
     assert.equal(login.status, 200);
     assert.equal(login.data.cart.count, 2);
+
+    const memberAdmin = await client('/api/admin/overview');
+    assert.equal(memberAdmin.status, 403);
+    assert.equal(memberAdmin.data.code, 'FORBIDDEN');
+
+    const adminClient = createClient();
+    const adminLogin = await adminClient('/api/auth/login', 'POST', {
+      email: 'studio@forme.demo',
+      password: 'FormeStudio2026!',
+    });
+    assert.equal(adminLogin.status, 200);
+    const overview = await adminClient('/api/admin/overview');
+    assert.equal(overview.status, 200);
+    assert.equal(overview.data.products, 17);
   });
 
   await t.test('Service 02 (Tuong): Catalog Pagination, Detail & Cart Stock Integrity', async () => {
@@ -110,25 +141,25 @@ test('SOA 5 Services: Identity, Catalog/Cart, Stylist/Layering, Media/Jobs & AI 
     const prodList = await client('/api/products?page=1&limit=8');
     assert.equal(prodList.status, 200);
     assert.equal(prodList.data.items.length, 8);
-    assert.equal(prodList.data.total, 24);
+    assert.equal(prodList.data.total, 17);
 
-    const detail = await client('/api/products/linen-shirt');
+    const detail = await client('/api/products/rose-knit');
     assert.equal(detail.status, 200);
-    assert.equal(detail.data.product.id, 'linen-shirt');
+    assert.equal(detail.data.product.id, 'rose-knit');
 
     const missing = await client('/api/products/khong-ton-tai');
     assert.equal(missing.status, 404);
 
-    const added = await client('/api/cart/items', 'POST', { productId: 'linen-shirt', size: 'M', quantity: 1 });
+    const added = await client('/api/cart/items', 'POST', { productId: 'rose-knit', size: 'M', quantity: 1 });
     assert.equal(added.status, 200);
     assert.equal(added.data.count, 1);
 
-    const maxStock = byId.get('linen-shirt').stock.M;
-    const overflow = await client('/api/cart/items', 'PATCH', { productId: 'linen-shirt', size: 'M', quantity: maxStock + 10 });
+    const maxStock = byId.get('rose-knit').stock.M;
+    const overflow = await client('/api/cart/items', 'PATCH', { productId: 'rose-knit', size: 'M', quantity: maxStock + 10 });
     assert.equal(overflow.status, 422);
     assert.equal(overflow.data.code, 'INVALID_CART');
 
-    const removed = await client('/api/cart/items', 'DELETE', { productId: 'linen-shirt', size: 'M' });
+    const removed = await client('/api/cart/items', 'DELETE', { productId: 'rose-knit', size: 'M' });
     assert.equal(removed.status, 200);
     assert.equal(removed.data.count, 0);
   });
@@ -141,12 +172,12 @@ test('SOA 5 Services: Identity, Catalog/Cart, Stylist/Layering, Media/Jobs & AI 
     assert.equal(bad.data.code, 'INVALID_OUTFIT');
 
     const layered = await client('/api/stylist/validate-outfit', 'POST', {
-      productIds: ['navy-blazer', 'blue-jeans', 'black-trouser', 'ivory-tee'],
+      productIds: ['navy-blazer', 'blue-jeans', 'black-trouser', 'sage-tee'],
     });
     assert.equal(layered.status, 200);
     assert.deepEqual(
       layered.data.orderedItems.map(i => i.id),
-      ['black-trouser', 'ivory-tee', 'navy-blazer']
+      ['black-trouser', 'sage-tee', 'navy-blazer']
     );
     assert.equal(layered.data.orderedItems.at(-1).layer_level, 2);
     assert.ok(layered.data.notifications.length >= 1);
@@ -177,7 +208,7 @@ test('SOA 5 Services: Identity, Catalog/Cart, Stylist/Layering, Media/Jobs & AI 
       personImage: step1Portrait.data.image,
       framing: 'portrait_upper',
       items: [
-        { id: 'linen-shirt', layer_level: 1, slot: 'top' },
+        { id: 'rose-knit', layer_level: 1, slot: 'top' },
         { id: 'blue-jeans', layer_level: 1, slot: 'bottom' },
       ],
     });
@@ -203,7 +234,7 @@ test('SOA 5 Services: Identity, Catalog/Cart, Stylist/Layering, Media/Jobs & AI 
       framing: 'full_body',
       items: [
         { id: 'navy-blazer', layer_level: 2, slot: 'outer' },
-        { id: 'linen-shirt', layer_level: 1, slot: 'top' },
+        { id: 'rose-knit', layer_level: 1, slot: 'top' },
         { id: 'blue-jeans', layer_level: 1, slot: 'bottom' },
       ],
     };
