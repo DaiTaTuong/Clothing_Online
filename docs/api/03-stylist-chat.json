@@ -132,7 +132,7 @@
             "type": "array",
             "minItems": 1,
             "items": { "type": "string" },
-            "example": ["ivory-tee", "blue-jeans", "navy-blazer"]
+            "example": ["sage-tee", "blue-jeans", "navy-blazer"]
           }
         }
       },

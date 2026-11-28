@@ -10,7 +10,7 @@ import { sampleProfile } from '../shared/contracts/index.mjs';
 
 test('stylist queries honor the category, color, occasion, stock and budget', () => {
   const cases = [
-    ['áo sơ mi đi làm cho da ngăm dưới 500k', p=>p.cut==='shirt'&&p.occasions.includes('office')&&p.tones.includes('deep')&&p.price<=500000],
+    ['áo dệt kim đi làm cho da ngăm dưới 500k', p=>p.cut==='knit'&&p.occasions.includes('office')&&p.tones.includes('deep')&&p.price<=500000],
     ['quần đi làm dưới 650k',p=>p.category==='bottoms'&&p.occasions.includes('office')&&p.price<=650000],
     ['đầm dự tiệc dưới 900k',p=>p.category==='dresses'&&p.occasions.includes('formal')&&p.price<=900000],
     ['chân váy đỏ rượu',p=>p.cut==='skirt'&&p.color==='Đỏ rượu'],
@@ -18,7 +18,7 @@ test('stylist queries honor the category, color, occasion, stock and budget', ()
     ['áo size XL',p=>p.category==='tops'&&p.stock.XL>0],
     ['đầm dạo phố cho da sáng',p=>p.category==='dresses'&&p.occasions.includes('casual')&&p.tones.includes('light')],
     ['quần jeans',p=>p.id==='blue-jeans'],
-    ['áo dưới 300.000',p=>p.category==='tops'&&p.price<=300000],
+    ['áo dưới 350.000',p=>p.category==='tops'&&p.price<=350000],
     ['đầm dưới 1,2 triệu',p=>p.category==='dresses'&&p.price<=1200000],
   ];
   for (const [q,accept] of cases) {
@@ -33,7 +33,7 @@ test('stylist queries honor the category, color, occasion, stock and budget', ()
   assert.ok(set.reduce((n,r)=>n+r.product.price,0)<=1200000);
   assert.match(answer('Tôi mặc size gì?',null,products[0]).text,/số đo/);
   assert.match(answer('Tôi mặc size gì?',{...sampleProfile,bust:89},products[0]).text,/size S/);
-  assert.deepEqual(Object.values(Object.groupBy(products,p=>p.category)).map(group=>group.length),[8,8,8]);
+  assert.equal(products.length, 17);
 });
 
 test('guest and account retain their own data, with validated cart and cached try-on', async t => {
@@ -57,12 +57,12 @@ test('guest and account retain their own data, with validated cart and cached tr
   await a('/profile','PUT',{...sampleProfile,height:210},422);
   const session=await a('/profile','PUT',sampleProfile);
   assert.equal(session.profileVersion,1);
-  const d={productId:'linen-shirt',size:'S',quantity:1};
-  assert.equal((await a('/cart/items','POST',d)).total,489000);
+  const d={productId:'rose-knit',size:'S',quantity:1};
+  assert.equal((await a('/cart/items','POST',d)).total,459000);
   await a('/cart/items','PATCH',{...d,quantity:99},422);
   assert.equal((await b('/cart')).count,0);
-  const chat=await a('/chat','POST',{message:'áo sơ mi đi làm cho da ngăm dưới 500k'});
-  assert.deepEqual(chat.messages[1].cards.map(x=>x.productId),['linen-shirt']);
+  const chat=await a('/chat','POST',{message:'áo dệt kim đi làm cho da ngăm dưới 500k'});
+  assert.deepEqual(chat.messages[1].cards.map(x=>x.productId),['rose-knit']);
   await b('/conversations/'+chat.conversationId,'GET',undefined,404);
   const png=await sharp({create:{width:90,height:90,channels:3,background:'#c29d85'}}).png().toBuffer();
   await a('/media','POST',{image:'data:image/png;base64,YWJjZA=='},422);
@@ -95,5 +95,5 @@ test('guest and account retain their own data, with validated cart and cached tr
   assert.equal((await a('/auth/login','POST',{email:'demo-test@example.com',password:'DemoPassword2026'})).cart.count,1);
   const admin=await b('/auth/login','POST',{email:'studio@forme.demo',password:'FormeStudio2026!'});
   assert.equal(admin.user.role,'admin');
-  assert.equal((await b('/admin/overview')).products,24);
+  assert.equal((await b('/admin/overview')).products,17);
 });

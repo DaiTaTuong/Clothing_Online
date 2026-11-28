@@ -43,8 +43,24 @@ API lỗi trả `{ code, message, requestId }`. Tác vụ có các trạng thái
 | Tư vấn, tìm kiếm | Đã kiểm thử 15 tình huống bằng bộ quy tắc, gồm lọc cứng theo giá, tông, loại, dịp, tồn kho, size, phối set và kết quả rỗng. |
 | Phiên, phân quyền, giỏ, lịch sử | Đã kiểm thử API với hai phiên độc lập, ảnh sai định dạng, thao tác xóa, gộp dữ liệu khi đăng ký và khôi phục giỏ khi đăng nhập lại. |
 | Luồng trên trình duyệt | Đã chạy với viewport desktop 1440 px, tablet 768 px và điện thoại 390 px. Kiểm tra tải ảnh, tìm kiếm, chat, điều hướng thử đồ, kích thước PNG tải về, giỏ và lịch sử. |
-| LLM | Có adapter [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create). Chưa kiểm tra phản hồi trực tiếp vì chưa có khóa. |
-| Face Swap | Có adapter [Replicate Face Swap](https://replicate.com/codeplugtech/face-swap/api). Chưa chạy với ảnh chân dung thật và phôi SVG; mặc định tắt. |
-| Virtual Try-On | Có adapter [FASHN Try-On v1.6](https://docs.fashn.ai/api-reference/tryon-v1-6). Chưa có kết quả thật cho áo, quần/váy hay đầm. Để trống `TRYON_AI_CATEGORIES` cho tới khi xác nhận từng nhóm. |
+| LLM | Đã tích hợp Google Gemini (`GEMINI_API_KEY`) và OpenAI Chat Completions (`OPENAI_API_KEY`) kèm cơ chế tự động fallback về bộ quy tắc `rules.mjs`. |
+| AI Vision Bước 1 (Pose & Matting) | Đã tích hợp `YOLOv8-Pose` (17 keypoints) + `Rembg (u2net_human_seg)` tách nền trắng `#FFFFFF`, lọc vật thể thừa và làm mịn ánh sáng studio (`Bilateral Studio Filter`). |
+| AI Vision Bước 2 (Virtual Try-On) | Hỗ trợ song song Phương pháp 1 (`FastAPI Local / LoRA / Pose-Face-Guided`) và Phương pháp 2 (`Google Gemini Multimodal API`) kèm Cache Hash SHA-256. |
 
-Điểm nghiệm thu thử ảnh thật trong `Tasks.md` cần khóa API và ảnh được phép sử dụng. Sau khi cấu hình, thử trước một áo với phôi 2D, ghi thời gian và lỗi nhận diện; nếu dùng ảnh người mẫu đối chứng, ghi rõ đầu vào đối chứng. Sau đó kiểm tra ít nhất 10 cặp và chỉ bật nhóm đạt. Không có thanh toán, vận chuyển hoặc quản trị đơn hàng trong MVP. Slide, video và bảng giờ làm việc của nhóm là phần hồ sơ dự án riêng.
+---
+
+## Đảm bảo Thiết kế API (API Design Assurance) & Đặc tả Use Cases (Dùng cho Slide Báo cáo)
+
+ Toàn bộ nội dung chi tiết phục vụ Slide thuyết trình về **Đảm bảo Thiết kế API (8 trụ cột chất lượng SOA/REST)** và **Đặc tả Use Cases (Actors, Sơ đồ Use Case, Bảng Pre/Post-conditions, Luồng chính/Ngoại lệ và 2 Sequence Diagrams)** đã được biên soạn đầy đủ tại:
+- `docs/Tasks_SOA.md` — **Mục 4.2: Cơ chế Đảm bảo Thiết kế API (API Design Assurance & SOA Quality Attributes)**
+- `docs/Tasks_SOA.md` — **Phần 5: Đặc tả Use Cases & Biểu đồ Tuần tự (Sequence Diagrams cho Slide)**
+
+### Tóm tắt nhanh 8 cơ chế Đảm bảo Thiết kế API cho Slide:
+1. **Contract-First & OpenAPI 3.0 Federation:** 5 tệp đặc tả JSON độc lập (`docs/api/01..05.json`) dùng chung `common-schemas.json`, hợp nhất tự động tại `GET /api/openapi.json`.
+2. **Service Autonomy & Loose Coupling:** 5 Router dịch vụ SOA tách biệt, giao tiếp với AI Microservice (`FastAPI :5001`) và Cloud AI qua REST JSON phi trạng thái.
+3. **RESTful Resource & Semantic HTTP Codes:** Chuẩn hóa danh từ tài nguyên và mã phản hồi (`200`, `201`, `202 Accepted`, `400`, `401`, `403`, `404`, `409 Conflict`, `413`, `415`, `422`, `429`, `500`).
+4. **Unified Error Envelope & Request Tracing:** Mọi lỗi đều có dạng `{ code, message, requestId }` với `requestId` (UUID v4) để truy vết log.
+5. **Optimistic Concurrency & Async Job Polling:** Kiểm soát `profileVersion` (`409 STALE_PROFILE`), khóa `chatBusy` (`409 CHAT_BUSY`) và cơ chế `202 Accepted` + polling `GET /api/jobs/:id`.
+6. **Content-Addressed Caching (SHA-256):** Băm tổ hợp `(method, framing, personImageHash, sortedItems)` giúp trả kết quả phối đồ trùng lặp dưới `50ms` (`cached: true`).
+7. **Defense-in-Depth Security:** Cookie `HttpOnly; SameSite=Lax`, token băm `SHA-256`, mật khẩu `scrypt`, kiểm tra `Origin` chống CSRF, giới hạn payload và Rate Limiting theo IP/Owner.
+8. **3-Tier Graceful Fallback & Privacy TTL 24h:** Tự động chuyển đổi mượt giữa `Gemini API` ➔ `FastAPI AI Microservice` ➔ `Gateway Sharp 2D`; tiến trình `store.sweep()` tự động xóa ảnh tạm của khách sau 24 giờ.

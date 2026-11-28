@@ -832,7 +832,7 @@ export function Fitting({ session, products, itemId, itemsParam, look, navigate,
                   className={isSelected ? 'selected' : ''}
                   onClick={() => handleSelectGarment(p)}
                 >
-                  <img src={p.image} alt="" loading="lazy" />
+                  <img src={p.image} alt="" loading="lazy" onError={e => { const btn = e.currentTarget.closest('button'); if (btn) btn.style.display = 'none'; }} />
                   <span>
                     <strong>{p.name}</strong>
                     <small>{money(p.price)} {p.cut === 'blazer' && '· Lớp ngoài'}</small>

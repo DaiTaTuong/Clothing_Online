@@ -8,11 +8,29 @@ Cần Node.js **24 trở lên**.
 
 ```powershell
 npm.cmd ci
-pip install -r requirements.txt
+npm.cmd run db:seed
 npm.cmd run dev
 ```
 
-Mở **http://127.0.0.1:5173**. Trên macOS/Linux dùng `npm` thay cho `npm.cmd`. Đổi cổng bằng `npm run dev -- --port 5174`. Để chạy bản build: `npm run build` rồi `npm start`.
+Mở **http://127.0.0.1:5173** (Giao diện web) và **http://127.0.0.1:5173/api/docs** (Swagger UI tương tác từ `/api/openapi.json`). Trên macOS/Linux dùng `npm` thay cho `npm.cmd`. Đổi cổng bằng `npm run dev -- --port 5174`. Để chạy bản build: `npm run build` rồi `npm start`. (Tùy chọn AI Python Microservice: `pip install -r requirements.txt`.)
+
+## Tài liệu API, Kiểm thử & Báo cáo Tuần 12–13
+
+| Hạng mục | Đường dẫn |
+| --- | --- |
+| OpenAPI 3.0.3 (hợp nhất 25 endpoints) | `docs/api/openapi.json` (tạo lại bằng `npm.cmd run openapi:export`), live tại `GET /api/openapi.json` |
+| Swagger UI | `http://127.0.0.1:5173/api/docs` |
+| Postman Collection (Happy + Negative) | `docs/postman/FORME_Studio_API.postman_collection.json` |
+| Khởi tạo Schema & Dữ liệu mẫu SQLite | `scripts/db-seed.mjs` (`npm.cmd run db:seed`) |
+| Sản phẩm Tuần 12 (Design Review) | `docs/tuan-12/` (Project Brief & Thiết kế `.docx`, Báo cáo tiến độ `.docx`, Slide 7 trang `.pptx`) |
+| Sản phẩm Tuần 13 (Implementation Review) | `docs/tuan-13/` (Báo cáo tiến độ `.docx`, Bằng chứng kiểm thử `.docx`, Slide 6 trang `.pptx`) |
+
+### Phân công nhóm (5 thành viên — 20% / người)
+- **Doãn Duy Lợi:** API Gateway, SQLite Store, Auth/Session, Swagger UI, `01-identity-profile.json`
+- **Nguyễn Xuân Tường:** Catalog, Search, Cart & Shop UI, `02-catalog-cart.json`
+- **Hoàng Lâm Tùng:** AI Stylist (Rules/LLM), Layering & Conflict Resolution, `03-stylist-chat.json`
+- **Nguyễn Phúc Thành:** Media TTL, Async Try-On Jobs & Fitting Room UI, `04-media-tryon-jobs.json`
+- **An Đức Minh Trí:** AI Vision 2 bước, Cache Hash SHA-256 & FastAPI Microservice, `05-ai-vision.json`
 
 Mở biểu tượng tài khoản và chọn **Vào bằng tài khoản quản trị demo**. Có thể đăng nhập thủ công bằng `studio@forme.demo` / `FormeStudio2026!`. Tài khoản có quyền cao nhất trong ứng dụng demo và vào được bảng tổng quan. Mỗi thành viên cũng có thể đăng ký tài khoản riêng để thử lưu và khôi phục dữ liệu. Khi đưa lên máy chủ chia sẻ, đặt `DEMO_ADMIN=0`, bật HTTPS và cấu hình `COOKIE_SECURE=1` cùng `PUBLIC_ORIGIN`.
 

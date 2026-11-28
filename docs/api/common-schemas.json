@@ -51,7 +51,7 @@
           "total": {
             "type": "integer",
             "minimum": 0,
-            "example": 24
+            "example": 17
           },
           "page": {
             "type": "integer",
